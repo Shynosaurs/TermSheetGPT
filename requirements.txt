@@ -1,5 +1,7 @@
 streamlit
 sqlalchemy
 pymysql
-plotly
+pandas
 fpdf2
+plotly
+openai>=1.0.0
