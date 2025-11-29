@@ -395,12 +395,15 @@ def generate_pdf(summary_text: str, recommendations: str):
     pdf.set_font("Arial", "", 11)
     pdf.multi_cell(0, 6, recommendations)
 
-    # Get PDF as bytes (fpdf2 may return str or bytes depending on version)
+    # Get PDF buffer from fpdf (different versions return different types)
     data = pdf.output(dest="S")
-    if isinstance(data, bytes):
-        pdf_bytes = data
-    else:
+
+    if isinstance(data, str):
+        # Old-style: returns a latin-1 string
         pdf_bytes = data.encode("latin-1", "replace")
+    else:
+        # bytes, bytearray, or similar → force to bytes
+        pdf_bytes = bytes(data)
 
     buf = BytesIO(pdf_bytes)
     buf.seek(0)
