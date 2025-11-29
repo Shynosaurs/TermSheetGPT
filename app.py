@@ -414,7 +414,7 @@ def signup_form():
         if user:
             st.session_state["user"] = user
             st.success("Account created! You are now signed in.")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Could not create account. Please try again.")
 
@@ -431,7 +431,7 @@ def signin_form():
         if user and verify_password(pw, user["password_hash"]):
             st.session_state["user"] = user
             st.success("You are now signed in.")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Invalid email or password.")
 
@@ -471,7 +471,7 @@ def main():
             st.write("")
             if st.button("Sign out"):
                 st.session_state["user"] = None
-                st.experimental_rerun()
+                st.rerun()
 
             st.markdown("---")
             st.caption("Tip: use the ☰ icon at top-left to collapse this sidebar.")
