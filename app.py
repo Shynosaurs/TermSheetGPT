@@ -551,7 +551,7 @@ def main():
             unsafe_allow_html=True,
         )
     with top_col2:
-        st.write("")  # spacing
+        st.write("")
         st.write("")
         if st.button("Sign out"):
             st.session_state["user"] = None
@@ -572,19 +572,23 @@ def main():
 
             c1, c2 = st.columns(2)
             with c1:
+                # Revenue in '000, integer only
                 revenue_th = st.number_input(
                     "Annual revenue / ARR ('000)",
-                    min_value=0.0,
-                    value=0.0,
-                    step=10.0,
+                    min_value=0,
+                    value=0,
+                    step=10,
+                    format="%d",
                     help="Enter revenue in thousands. For example, 500 = 500,000."
                 )
             with c2:
+                # YoY growth with 1 decimal
                 growth = st.number_input(
                     "YoY growth (%)",
                     min_value=-100.0,
                     value=50.0,
-                    step=5.0,
+                    step=0.1,
+                    format="%.1f",
                     help="Year-over-year revenue growth."
                 )
 
@@ -601,16 +605,18 @@ def main():
             with t1:
                 pre_money_th = st.number_input(
                     "Pre-money valuation ('000)",
-                    min_value=0.0,
-                    value=10_000.0,  # 10,000 * 1,000 = 10M
-                    step=500.0,
+                    min_value=0,
+                    value=10_000,  # 10,000 * 1,000 = 10M
+                    step=500,
+                    format="%d",
                     help="Enter pre-money valuation in thousands. For example, 10,000 = 10,000,000."
                 )
                 investment_amount_th = st.number_input(
                     "Investment amount ('000)",
-                    min_value=0.0,
-                    value=3_000.0,  # 3,000 * 1,000 = 3M
-                    step=250.0,
+                    min_value=0,
+                    value=3_000,  # 3,000 * 1,000 = 3M
+                    step=250,
+                    format="%d",
                     help="Enter investment amount in thousands. For example, 3,000 = 3,000,000."
                 )
             with t2:
@@ -666,8 +672,8 @@ def main():
             # Slider in thousands, step = 100 => 100,000
             assumed_exit_th = st.slider(
                 "Assumed exit value for waterfall ('000)",
-                5_000,        # 5,000 * 1,000 = 5M
-                200_000,      # 200,000 * 1,000 = 200M
+                100,          # 100 * 1,000 = 100K
+                300_000,      # 300,000 * 1,000 = 300M
                 50_000,       # default 50M
                 step=100,     # 100 * 1,000 = 100,000
                 help="Exit value in thousands. For example, 50,000 = 50,000,000."
