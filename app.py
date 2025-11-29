@@ -16,7 +16,6 @@ try:
 except ImportError:
     FPDF_AVAILABLE = False
 
-# OpenAI client
 from openai import OpenAI
 
 
@@ -30,14 +29,13 @@ def get_openai_client():
     Never hardcode it in the source code.
     """
     api_key = None
-
-    # 1) Streamlit Cloud secrets (recommended)
+    # 1) Streamlit secrets (Streamlit Cloud)
     try:
         api_key = st.secrets["OPENAI_API_KEY"]
     except Exception:
         pass
 
-    # 2) Local dev (optional): use environment variable
+    # 2) Local dev fallback via env var
     if not api_key:
         api_key = os.environ.get("OPENAI_API_KEY")
 
@@ -294,6 +292,7 @@ def build_json_payload(user_name: str, inputs: dict) -> dict:
             "description": inputs.get("description"),
         },
         "round": {
+            "round_label": inputs.get("round_label"),
             "round_type": inputs.get("instrument"),
             "currency": inputs.get("currency"),
             "pre_money_valuation": inputs.get("pre_money"),
@@ -310,19 +309,23 @@ def build_json_payload(user_name: str, inputs: dict) -> dict:
             "liquidation_preference_type": inputs.get("liq_type"),
             "anti_dilution_protection": inputs.get("anti_dilution"),
             "board_seats_for_investors": inputs.get("board_seats"),
+            "board_terms_text": inputs.get("board_terms_text"),
+            "veto_rights_text": inputs.get("veto_terms_text"),
+            "safes_notes_details": inputs.get("safes_notes_details"),
+            "option_pool_post_percent": inputs.get("option_pool_post"),
             "other_terms": inputs.get("other_terms"),
         },
         "priorities": {
-            # you can wire this to real inputs later (e.g., checkboxes/sliders)
-            "valuation": "not specified",
-            "dilution": "not specified",
-            "control": "not specified",
-            "speed_to_close": "not specified",
+            "valuation_priority_1_to_5": inputs.get("prio_valuation"),
+            "dilution_priority_1_to_5": inputs.get("prio_dilution"),
+            "control_priority_1_to_5": inputs.get("prio_control"),
+            "speed_to_close_priority_1_to_5": inputs.get("prio_speed"),
+            "notes": inputs.get("priority_notes"),
         },
         "investor_context": {
-            "investor_type": "not specified",
-            "leverage": "not specified",
-            "reputation": "not specified",
+            "investor_type": inputs.get("investor_type"),
+            "leverage": inputs.get("leverage"),
+            "reputation": inputs.get("investor_reputation"),
         },
     }
     return payload
@@ -351,7 +354,6 @@ def call_termsheet_gpt_with_json(payload: dict) -> str:
         )
         return resp.choices[0].message.content
     except Exception as e:
-        # Fail gracefully so the rest of the app still works
         return f"⚠️ Error calling TermSheetGPT API: {e}"
 
 
@@ -368,6 +370,7 @@ def get_db_config():
     db_password = st.secrets["DB_PASSWORD"]
     db_name = st.secrets["DB_NAME"]
     return db_host, db_user, db_password, db_name
+
 
 def get_engine():
     db_host, db_user, db_password, db_name = get_db_config()
@@ -548,6 +551,12 @@ def inject_css():
             background-color: #020617;
             border: 1px solid #1f2937;
             box-shadow: 0 0 30px rgba(0,0,0,0.35);
+        }
+        .key-moves-card {
+            background-color: #0f172a;
+            border-radius: 14px;
+            padding: 1rem 1.25rem;
+            border: 1px solid #1d4ed8;
         }
         </style>
         """,
@@ -760,7 +769,46 @@ def render_auth_screen():
 
 
 # =========================================================
-# 7. MAIN APP
+# 7. OUTPUT PARSING (KEY MOVES)
+# =========================================================
+
+def extract_top_moves(text: str):
+    """
+    Roughly extract 'Your Top 3 Moves' section from TermSheetGPT markdown.
+    Returns a list of strings (moves).
+    """
+    if not text:
+        return []
+
+    lines = text.splitlines()
+    moves = []
+    in_section = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Start of section
+        if "Your Top 3 Moves" in stripped:
+            in_section = True
+            continue
+
+        if in_section:
+            if not stripped:
+                # stop at first blank after moves
+                if moves:
+                    break
+                else:
+                    continue
+
+            # Accept lines that look like bullets or "Move 1 - ..." etc.
+            if stripped.lower().startswith("move") or stripped.startswith("-") or stripped[0].isdigit():
+                moves.append(stripped)
+
+    return moves[:3]
+
+
+# =========================================================
+# 8. MAIN APP
 # =========================================================
 
 def main():
@@ -790,6 +838,7 @@ def main():
     user = st.session_state["user"]
     name = user["name"]
 
+    # Header with signout
     top_col1, top_col2 = st.columns([6, 1])
     with top_col1:
         st.markdown(
@@ -816,29 +865,31 @@ def main():
             st.rerun()
 
     st.write("")
-    col1, col2 = st.columns([1.1, 1.0])
+    col1, col2 = st.columns([1.15, 0.85])
 
+    # -------------------- LEFT: INPUTS --------------------
     with col1:
         with st.form("deal_form"):
-            st.subheader("Deal & Company Inputs")
+            st.subheader("Company & Round Basics")
 
             company_name = st.text_input("Company name")
             industry = st.text_input("Industry / vertical")
-            stage = st.selectbox("Stage", ["Pre-seed", "Seed", "Series A", "Series B", "Later"])
+            stage = st.selectbox("Company stage", ["Pre-revenue", "Pre-seed", "Seed", "Series A", "Series B", "Later"])
+            round_label = st.text_input("Round label (e.g., Seed, Series A)", value="Series A")
             country = st.text_input("Country/Region", "United States")
             currency = st.selectbox("Currency", ["USD", "EUR", "GBP", "Other"])
 
-            c1, c2 = st.columns(2)
-            with c1:
+            c1a, c1b = st.columns(2)
+            with c1a:
                 revenue_th = st.number_input(
                     "Annual revenue / ARR ('000)",
                     min_value=0,
                     value=0,
                     step=10,
                     format="%d",
-                    help="Enter revenue in thousands. For example, 500 = 500,000."
+                    help="Enter revenue in thousands. Example: 500 = 500,000."
                 )
-            with c2:
+            with c1b:
                 growth = st.number_input(
                     "YoY growth (%)",
                     min_value=-100.0,
@@ -855,7 +906,7 @@ def main():
             )
 
             st.markdown("---")
-            st.subheader("Term Sheet Terms")
+            st.subheader("Economics & Security")
 
             t1, t2 = st.columns(2)
             with t1:
@@ -865,7 +916,7 @@ def main():
                     value=10_000,
                     step=500,
                     format="%d",
-                    help="Enter pre-money valuation in thousands. For example, 10,000 = 10,000,000."
+                    help="Pre-money valuation in thousands. Example: 10,000 = 10,000,000."
                 )
                 investment_amount_th = st.number_input(
                     "Investment amount ('000)",
@@ -873,7 +924,7 @@ def main():
                     value=3_000,
                     step=250,
                     format="%d",
-                    help="Enter investment amount in thousands. For example, 3,000 = 3,000,000."
+                    help="Investment amount in thousands. Example: 3,000 = 3,000,000."
                 )
             with t2:
                 equity_percentage = st.number_input(
@@ -886,21 +937,24 @@ def main():
                 )
                 instrument = st.selectbox(
                     "Instrument",
-                    ["Preferred Equity", "SAFE", "Convertible Note", "Common Equity"]
+                    ["Preferred Equity", "SAFE", "Convertible Note", "Common Equity", "Search Fund Equity"]
                 )
+
+            st.markdown("---")
+            st.subheader("Key Investor Terms")
 
             t3, t4 = st.columns(2)
             with t3:
                 liq_multiple = st.number_input(
-                    "Liquidation pref multiple (x)",
+                    "Liquidation preference multiple (x)",
                     min_value=0.5,
                     max_value=3.0,
                     value=1.0,
                     step=0.5,
-                    help="How many times the investor's money comes back before common."
+                    help="How many times the investor's money returns before common."
                 )
                 liq_type = st.selectbox(
-                    "Liquidation pref type",
+                    "Liquidation preference type",
                     ["Non-participating preferred", "Participating preferred"],
                     help="Non-participating vs participating preferred."
                 )
@@ -915,13 +969,74 @@ def main():
                     min_value=0,
                     value=1,
                     step=1,
-                    help="How many formal board seats investors receive."
+                    help="Formal board seats granted to investors."
                 )
+
+            board_terms_text = st.text_area(
+                "Board & control terms (optional)",
+                height=60,
+                help="Paste any relevant board composition / voting / control language (optional)."
+            )
+
+            veto_terms_text = st.text_area(
+                "Veto / protective provisions (optional)",
+                height=60,
+                help="Paste key veto rights or protective provisions if you have them."
+            )
+
+            safes_notes_details = st.text_area(
+                "Existing SAFEs / notes (optional)",
+                height=60,
+                help="Describe outstanding SAFEs/convertible notes, caps/discounts, or paste terms."
+            )
+
+            option_pool_post = st.number_input(
+                "Post-money option pool target (%) (optional)",
+                min_value=0.0,
+                max_value=40.0,
+                value=10.0,
+                step=1.0,
+                help="Rough target for ESOP post-money (if relevant)."
+            )
 
             other_terms = st.text_area(
                 "Other key terms / concerns",
                 height=80,
-                help="Anything else that matters in this negotiation (e.g., pro rata, veto rights, ESOP top-up)."
+                help="Anything else that matters in this negotiation (pro rata, MFN, information rights, etc.)."
+            )
+
+            st.markdown("---")
+            st.subheader("Founder Priorities")
+
+            pcol1, pcol2, pcol3, pcol4 = st.columns(4)
+            with pcol1:
+                prio_valuation = st.slider("Valuation", 1, 5, 4)
+            with pcol2:
+                prio_dilution = st.slider("Dilution", 1, 5, 4)
+            with pcol3:
+                prio_control = st.slider("Control", 1, 5, 5)
+            with pcol4:
+                prio_speed = st.slider("Speed to close", 1, 5, 3)
+
+            priority_notes = st.text_area(
+                "Anything else about your goals for this round? (optional)",
+                height=60,
+            )
+
+            st.markdown("---")
+            st.subheader("Investor Context")
+
+            investor_type = st.selectbox(
+                "Lead investor type",
+                ["Not specified", "Top-tier VC", "Emerging VC", "Angel syndicate", "Strategic / Corporate", "Search Fund", "Other"]
+            )
+            leverage = st.selectbox(
+                "Who has more leverage right now?",
+                ["Not specified", "Founder (multiple term sheets)", "Balanced", "Investor (few options)"]
+            )
+            investor_reputation = st.selectbox(
+                "Investor reputation",
+                ["Not specified", "Very strong / brand-name", "Good but not top-tier", "Unknown / mixed", "Potentially problematic"]
             )
 
             st.markdown("---")
@@ -931,11 +1046,12 @@ def main():
                 300_000,
                 50_000,
                 step=100,
-                help="Exit value in thousands. For example, 50,000 = 50,000,000."
+                help="Exit value in thousands. Example: 50,000 = 50,000,000."
             )
 
             submitted = st.form_submit_button("Generate negotiation playbook")
 
+        # Convert '000 units to full numbers
         revenue = revenue_th * 1000.0
         pre_money = pre_money_th * 1000.0
         investment_amount = investment_amount_th * 1000.0
@@ -945,6 +1061,7 @@ def main():
             "company_name": company_name,
             "industry": industry,
             "stage": stage,
+            "round_label": round_label,
             "country": country,
             "currency": currency,
             "revenue": revenue,
@@ -958,10 +1075,23 @@ def main():
             "liq_type": liq_type,
             "anti_dilution": anti_dilution,
             "board_seats": board_seats,
+            "board_terms_text": board_terms_text,
+            "veto_terms_text": veto_terms_text,
+            "safes_notes_details": safes_notes_details,
+            "option_pool_post": option_pool_post,
             "other_terms": other_terms,
             "assumed_exit": assumed_exit,
+            "prio_valuation": prio_valuation,
+            "prio_dilution": prio_dilution,
+            "prio_control": prio_control,
+            "prio_speed": prio_speed,
+            "priority_notes": priority_notes,
+            "investor_type": investor_type,
+            "leverage": leverage,
+            "investor_reputation": investor_reputation,
         }
 
+    # Handle submit
     if submitted:
         save_deal(st.session_state["user"]["id"], inputs)
         payload = build_json_payload(name, inputs)
@@ -970,6 +1100,7 @@ def main():
         st.session_state["recs"] = recs
         st.session_state["inputs"] = inputs
 
+    # -------------------- RIGHT: OUTPUT --------------------
     with col2:
         st.subheader("AI Recommendations & Visuals")
 
@@ -977,8 +1108,22 @@ def main():
             recs = st.session_state["recs"]
             deal = st.session_state["inputs"]
 
-            st.markdown("##### Negotiation-Focused Analysis (TermSheetGPT)")
-            st.markdown(recs)
+            # Key moves card on top
+            moves = extract_top_moves(recs)
+            if moves:
+                st.markdown(
+                    "<div class='key-moves-card'><b>Key Negotiation Moves</b></div>",
+                    unsafe_allow_html=True,
+                )
+                for m in moves:
+                    # Clean up prefixes like "Move 1 —" if needed
+                    st.markdown(f"- {m}")
+
+                st.write("")
+
+            # Full analysis in an expander so it's readable
+            with st.expander("Full TermSheetGPT analysis", expanded=True):
+                st.markdown(recs)
 
             st.markdown("##### Valuation Scenarios")
             val_fig = plot_valuation(deal["pre_money"], deal["currency"])
@@ -1016,7 +1161,7 @@ def main():
 Generated on: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}
 
 Company: {deal['company_name'] or 'N/A'}
-Industry: {deal['industry'] or 'N/A'} | Stage: {deal['stage']}
+Industry: {deal['industry'] or 'N/A'} | Stage: {deal['stage']} | Round: {deal['round_label']}
 Country: {deal['country']} | Currency: {deal['currency']}
 
 Pre-money valuation: {deal['pre_money']:,.0f}
@@ -1026,6 +1171,7 @@ Equity offered: {deal['equity_percentage']:.1f}% ({deal['instrument']})
 Liquidation preference: {deal['liq_multiple']}x ({deal['liq_type']})
 Anti-dilution: {deal['anti_dilution']}
 Board seats: {deal['board_seats']}
+Option pool target (post): {deal['option_pool_post']:.1f}%
 
 Assumed exit (for visuals): {deal['assumed_exit']:,.0f}
 """
