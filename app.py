@@ -356,9 +356,26 @@ def plot_waterfall(pre, invest, liq_mult, liq_type, equity, currency, exit_v):
 # 6. PDF EXPORT
 # =========================================================
 
+def _sanitize_for_pdf(text: str) -> str:
+    """
+    Convert text to a Latin-1–compatible string for fpdf,
+    replacing characters that can't be encoded.
+    """
+    if text is None:
+        return ""
+    try:
+        return text.encode("latin-1", "replace").decode("latin-1")
+    except Exception:
+        return text.encode("ascii", "replace").decode("ascii")
+
+
 def generate_pdf(summary_text: str, recommendations: str):
     if not FPDF_AVAILABLE:
         return None
+
+    # Sanitize text so fpdf doesn't crash on Unicode
+    summary_text = _sanitize_for_pdf(summary_text)
+    recommendations = _sanitize_for_pdf(recommendations)
 
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
