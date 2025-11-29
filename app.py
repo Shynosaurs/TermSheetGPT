@@ -1,4 +1,3 @@
-
 import streamlit as st
 import plotly.graph_objects as go
 import numpy as np
@@ -31,19 +30,21 @@ except ImportError:
 # =========================================================
 
 def get_db_config():
-    # Prefer secrets on Streamlit Cloud
+    """
+    For Streamlit Cloud, DB creds should live in st.secrets['db'].
+    For local / Colab, fallback to hardcoded values.
+    """
     try:
         db_host = st.secrets["db"]["DB_HOST"]
         db_user = st.secrets["db"]["DB_USER"]
         db_password = st.secrets["db"]["DB_PASSWORD"]
         db_name = st.secrets["db"]["DB_NAME"]
     except Exception:
-        # Fallback for local debugging ONLY (do not rely on this in production)
+        # Fallback for local / prototype use only
         db_host = "isom599aws.c18k2ewikpxy.us-east-2.rds.amazonaws.com"
         db_user = "admin"
         db_password = "ISOM599db"
         db_name = "TermSheetGPT"
-
     return db_host, db_user, db_password, db_name
 
 
@@ -153,7 +154,7 @@ def create_user(name: str, email: str, password: str):
             )
         return get_user_by_email(email)
     except SQLAlchemyError:
-        # we already check for duplicates in signup_form, so just fail quietly here
+        # We check for duplicates in signup_form, so just fail quietly here.
         return None
 
 
@@ -397,7 +398,7 @@ def signup_form():
             st.error("Passwords do not match.")
             return
 
-        # 🔍 NEW: check if email already exists
+        # Check if email already exists
         existing = get_user_by_email(email)
         if existing:
             st.error("An account with this email already exists. Please sign in instead.")
@@ -407,6 +408,25 @@ def signup_form():
         if user:
             st.session_state["user"] = user
             st.success("Account created! You are now signed in.")
+        else:
+            st.error("Could not create account. Please try again.")
+
+
+def signin_form():
+    st.subheader("Sign in")
+    with st.form("signin"):
+        email = st.text_input("Email")
+        pw = st.text_input("Password", type="password")
+        ok = st.form_submit_button("Login")
+
+    if ok:
+        user = get_user_by_email(email)
+        if user and verify_password(pw, user["password_hash"]):
+            st.session_state["user"] = user
+            st.success("Logged in!")
+        else:
+            st.error("Invalid email or password.")
+
 
 # =========================================================
 # 8. MAIN APP
