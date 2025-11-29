@@ -394,8 +394,9 @@ def generate_pdf(summary_text: str, recommendations: str):
     pdf.set_font("Arial", "", 11)
     pdf.multi_cell(0, 6, recommendations)
 
-    buf = BytesIO()
-    pdf.output(buf, "F")
+    # ✅ Get PDF as bytes string instead of writing to a file
+    pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")
+    buf = BytesIO(pdf_bytes)
     buf.seek(0)
     return buf
 
