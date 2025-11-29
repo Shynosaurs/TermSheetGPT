@@ -31,11 +31,19 @@ except ImportError:
 # =========================================================
 
 def get_db_config():
-    # For Colab demo: use your AWS creds directly
-    db_host = "isom599aws.c18k2ewikpxy.us-east-2.rds.amazonaws.com"
-    db_user = "admin"
-    db_password = "ISOM599db"
-    db_name = "TermSheetGPT"
+    # Prefer secrets on Streamlit Cloud
+    try:
+        db_host = st.secrets["db"]["DB_HOST"]
+        db_user = st.secrets["db"]["DB_USER"]
+        db_password = st.secrets["db"]["DB_PASSWORD"]
+        db_name = st.secrets["db"]["DB_NAME"]
+    except Exception:
+        # Fallback for local debugging ONLY (do not rely on this in production)
+        db_host = "isom599aws.c18k2ewikpxy.us-east-2.rds.amazonaws.com"
+        db_user = "admin"
+        db_password = "ISOM599db"
+        db_name = "TermSheetGPT"
+
     return db_host, db_user, db_password, db_name
 
 
