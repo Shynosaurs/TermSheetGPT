@@ -1,6 +1,5 @@
 import streamlit as st
 import plotly.graph_objects as go
-import numpy as np
 from io import BytesIO
 from datetime import datetime
 
@@ -415,6 +414,7 @@ def signup_form():
         if user:
             st.session_state["user"] = user
             st.success("Account created! You are now signed in.")
+            st.experimental_rerun()
         else:
             st.error("Could not create account. Please try again.")
 
@@ -431,6 +431,7 @@ def signin_form():
         if user and verify_password(pw, user["password_hash"]):
             st.session_state["user"] = user
             st.success("You are now signed in.")
+            st.experimental_rerun()
         else:
             st.error("Invalid email or password.")
 
@@ -456,16 +457,15 @@ def main():
     with st.sidebar:
         st.title("TermSheetGPT")
 
-        user = st.session_state["user"]
-
-        if user:
-            # Show compact welcome state after login
+        if st.session_state["user"]:
+            user = st.session_state["user"]
+            # Compact welcome in sidebar only
             st.markdown(
                 f"<div class='sidebar-welcome'>Welcome, <b>{user['name']}</b>! 👋</div>",
                 unsafe_allow_html=True,
             )
             st.markdown(
-                "<div class='sidebar-tagline'>You're signed in. Use the main panel to configure your deal.</div>",
+                "<div class='sidebar-tagline'>You're signed in. Use the main panel to set up your deal.</div>",
                 unsafe_allow_html=True,
             )
             st.write("")
@@ -504,6 +504,7 @@ def main():
 
     # Logged-in view
     user = st.session_state["user"]
+    name = user["name"]
 
     st.markdown(
         f"""
@@ -512,11 +513,10 @@ def main():
                 Negotiation Copilot
             </div>
             <h1 style="margin-top:0.3rem; margin-bottom:0.2rem;">
-                Welcome, {user['name']} — TermSheet<span class="ts-accent">GPT</span>
+                TermSheet<span class="ts-accent">GPT</span>
             </h1>
             <p class="ts-subtle">
-                Capture your deal terms on the left, and get AI-powered negotiation insights,
-                valuation scenarios, and liquidation waterfalls on the right.
+                {name}, let's map out your round and give you a clear, data-backed plan for your next investor conversation.
             </p>
         </div>
         """,
