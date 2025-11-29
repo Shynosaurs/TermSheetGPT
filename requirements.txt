@@ -1,0 +1,5 @@
+streamlit
+sqlalchemy
+pymysql
+plotly
+fpdf2
