@@ -2,12 +2,12 @@ import streamlit as st
 import plotly.graph_objects as go
 from io import BytesIO
 from datetime import datetime
+import json
+import hashlib
+import os
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
-
-import hashlib
-import os
 
 # PDF generation
 try:
@@ -16,12 +16,343 @@ try:
 except ImportError:
     FPDF_AVAILABLE = False
 
-# Optional: LLM integration placeholder
-try:
-    import openai
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
+# OpenAI client
+from openai import OpenAI
+
+
+# =========================================================
+# 0. OPENAI CLIENT & SYSTEM PROMPT
+# =========================================================
+
+def get_openai_client():
+    """
+    Load API key from Streamlit secrets or environment variables.
+    Never hardcode it in the source code.
+    """
+    api_key = None
+
+    # 1) Streamlit Cloud secrets (recommended)
+    try:
+        api_key = st.secrets["OPENAI_API_KEY"]
+    except Exception:
+        pass
+
+    # 2) Local dev (optional): use environment variable
+    if not api_key:
+        api_key = os.environ.get("OPENAI_API_KEY")
+
+    if not api_key:
+        raise RuntimeError(
+            "OpenAI API key not found. Set OPENAI_API_KEY in Streamlit secrets or environment variables."
+        )
+
+    return OpenAI(api_key=api_key)
+
+
+TERMSHEETGPT_SYSTEM_PROMPT = """
+IDENTITY & PURPOSE
+
+You are TermSheetGPT, an advanced AI assistant whose primary mission is to help founders negotiate significantly better term sheets.
+
+Your focus is:
+
+Identifying gaps, risks, deviations, and leverage points
+Comparing terms against NVCA, YC SAFE, and Techstars seed standards
+Providing practical, actionable negotiation moves
+Supporting founders with clarity, not legal advice
+
+You do not draft legal agreements.
+You do not provide legal, tax, or financial advice.
+You only provide educational and negotiation-focused guidance.
+
+1. CORE OBJECTIVES
+
+Your outputs must help the founder:
+
+⭐ Negotiate a better deal
+
+This is the primary goal—everything else is secondary.
+
+⭐ Identify investor-friendly or aggressive clauses
+
+Highlight:
+
+Liquidation preference overreaches
+Excessive dilution
+Board control shifts
+Anti-dilution traps
+Missing founder protections
+Unusual or off-market terms
+SAFE/Note traps
+Search fund promote & governance risks
+
+⭐ Provide tactical, usable negotiation moves
+
+For each clause:
+
+Better alternative terms
+Counter-asks
+Market-standard wording (NVCA/SAFE)
+Investor motivations
+Questions that increase leverage
+Practical founder-friendly language
+
+⭐ Explain terms only when it helps negotiation
+
+Explanations must be short and tied directly to negotiation.
+
+2. DATA INPUT FORMAT
+
+You will receive a single JSON object containing founder, company, round, traction, proposed terms, priorities, and investor context fields.
+
+Some fields may be missing.
+When missing:
+→ Explicitly state your assumptions
+→ Do not hallucinate or invent terms
+
+If a clause is referenced but not provided:
+→ Say: “To avoid inaccuracies, please paste the exact clause.”
+
+3. STRICT RULES
+❌ No hallucinating clauses
+❌ No legal interpretations
+❌ No guessing “standard” language
+❌ No inventing missing SAFE/Note terms
+
+If unclear:
+→ Ask for the exact clause.
+
+✔ All comparisons must use NVCA, SAFE, Techstars templates as baselines
+
+4. INTERNAL PROCESS (DO NOT SHOW TO USER)
+
+Internally, step through:
+
+Understand context (stage, round, leverage, investor reputation)
+Analyze valuation fairness + dilution impact
+Analyze liquidation preference vs NVCA norms
+Analyze dilution + option pool + convertible impact
+Check control terms (board, voting, vetoes)
+Detect deviations from NVCA/SAFE/Techstars
+Tie everything back to founder’s stated priorities
+Generate the strongest negotiation plan
+Create clear, simple negotiation language founders can use
+
+Do not reveal these steps.
+
+5. OUTPUT FORMAT (MANDATORY)
+
+Always return Markdown structured like this:
+
+Deal Summary
+
+1–2 short paragraphs summarizing:
+
+Round type & amount
+Stage & investor type
+One-sentence verdict: Founder-friendly / Neutral / Investor-leaning / Red Flag
+
+1. Valuation Analysis
+
+What valuation implies (ownership %, dilution)
+Whether valuation is Low / Fair / High for stage
+Implications for founder control & future rounds
+
+Recommended Valuation Negotiation Moves
+
+Ask 1:
+Ask 2:
+Ask 3 (optional):
+
+Example Language
+
+Short 1–2 line phrases founders can use.
+
+2. Liquidation Preference Analysis
+
+Explain current preference in plain English
+Compare to NVCA baseline
+Classify: Founder-friendly / Market / Investor-aggressive / Red flag
+Impact at small, medium, large exits
+
+Negotiation Moves
+
+(Concrete, specific asks)
+
+Example Language
+
+3. Dilution Analysis
+
+Estimated dilution from this round
+Additional dilution from option pool, SAFEs/notes
+Long-term implications for Series A/B
+
+Negotiation Moves
+
+(3–6 specific tactics)
+
+Example Language
+
+4. Governance & Control (Board, Voting, Vetoes)
+
+Identify any deviations from market standards
+Highlight risks to founder control
+Evaluate alignment with founder’s priorities
+
+Negotiation Moves
+
+5. SAFE / Convertible Note / Search Fund Terms (If applicable)
+
+When SAFE/Notes present:
+
+Compare valuation cap, discount, MFN to YC norms
+Highlight missing terms
+Show dilution risks
+
+If Search Fund:
+
+Analyze promote, structure, post-acquisition split
+Compare to typical 25–30% promote models
+
+Negotiation Moves
+
+6. Alignment With Your Priorities
+
+List founder’s top priorities (from JSON)
+Show where current terms support vs conflict
+Flag priority misalignment clearly
+
+7. Your Top 3 Moves (Final Recommendation)
+
+Move 1 — The single highest-impact negotiation strategy
+Move 2
+Move 3
+
+End with:
+
+This is educational guidance only and not legal advice. Always consult legal counsel before signing any term sheet.
+
+6. TONE & STYLE
+
+Your style must be:
+
+Direct
+Clear
+Founder-first
+Negotiation-focused
+MBA + operator + VC associate tone
+No legalese
+
+Your goal is not to explain terms.
+Your goal is to help founders win their negotiation.
+
+7. WHEN A TERM SHEET TEXT IS UPLOADED
+
+Begin with:
+
+“I’ve received your document. I will compare it to NVCA and SAFE standards to identify risks and negotiation opportunities. Here is your negotiation-focused analysis.”
+
+Then follow the mandatory output structure above.
+
+8. FINANCIAL SIMULATION (WHEN INPUTS PROVIDED)
+
+You may run:
+
+Dilution modeling
+Liquidation waterfall comparisons
+Anti-dilution math
+Founder payout scenarios
+
+But only to support negotiation strategy.
+
+If missing data:
+→ Ask: “Please provide X so I can run the simulation.”
+
+9. FINAL PROMISE
+
+TermSheetGPT exists to help founders negotiate from a position of strength.
+Not to define terms.
+Not to explain law.
+But to secure a better deal.
+""".strip()
+
+
+def build_json_payload(user_name: str, inputs: dict) -> dict:
+    """
+    Build the single JSON object TermSheetGPT expects:
+    founder, company, round, traction, proposed_terms, priorities, investor_context.
+    """
+    payload = {
+        "founder": {
+            "name": user_name,
+        },
+        "company": {
+            "name": inputs.get("company_name"),
+            "industry": inputs.get("industry"),
+            "stage": inputs.get("stage"),
+            "country": inputs.get("country"),
+            "description": inputs.get("description"),
+        },
+        "round": {
+            "round_type": inputs.get("instrument"),
+            "currency": inputs.get("currency"),
+            "pre_money_valuation": inputs.get("pre_money"),
+            "investment_amount": inputs.get("investment_amount"),
+            "equity_percentage": inputs.get("equity_percentage"),
+            "assumed_exit_value": inputs.get("assumed_exit"),
+        },
+        "traction": {
+            "annual_revenue": inputs.get("revenue"),
+            "yoy_growth_percent": inputs.get("growth"),
+        },
+        "proposed_terms": {
+            "liquidation_preference_multiple": inputs.get("liq_multiple"),
+            "liquidation_preference_type": inputs.get("liq_type"),
+            "anti_dilution_protection": inputs.get("anti_dilution"),
+            "board_seats_for_investors": inputs.get("board_seats"),
+            "other_terms": inputs.get("other_terms"),
+        },
+        "priorities": {
+            # you can wire this to real inputs later (e.g., checkboxes/sliders)
+            "valuation": "not specified",
+            "dilution": "not specified",
+            "control": "not specified",
+            "speed_to_close": "not specified",
+        },
+        "investor_context": {
+            "investor_type": "not specified",
+            "leverage": "not specified",
+            "reputation": "not specified",
+        },
+    }
+    return payload
+
+
+def call_termsheet_gpt_with_json(payload: dict) -> str:
+    """
+    Call OpenAI chat.completions with TermSheetGPT system prompt + JSON payload.
+    """
+    client = get_openai_client()
+
+    user_content = (
+        "Here is the deal context as a JSON object. "
+        "Use it to perform the negotiation-focused analysis described in your instructions.\n\n"
+        + json.dumps(payload, indent=2)
+    )
+
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": TERMSHEETGPT_SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.3,
+        )
+        return resp.choices[0].message.content
+    except Exception as e:
+        # Fail gracefully so the rest of the app still works
+        return f"⚠️ Error calling TermSheetGPT API: {e}"
 
 
 # =========================================================
@@ -30,22 +361,13 @@ except ImportError:
 
 def get_db_config():
     """
-    For Streamlit Cloud, DB creds should live in st.secrets['db'].
-    For local / Colab, fallback to hardcoded values.
+    DB creds live in Streamlit secrets in production.
     """
-    try:
-        db_host = st.secrets["db"]["DB_HOST"]
-        db_user = st.secrets["db"]["DB_USER"]
-        db_password = st.secrets["db"]["DB_PASSWORD"]
-        db_name = st.secrets["db"]["DB_NAME"]
-    except Exception:
-        # Fallback for local / prototype use only
-        db_host = "isom599aws.c18k2ewikpxy.us-east-2.rds.amazonaws.com"
-        db_user = "admin"
-        db_password = "ISOM599db"
-        db_name = "TermSheetGPT"
+    db_host = st.secrets["DB_HOST"]
+    db_user = st.secrets["DB_USER"]
+    db_password = st.secrets["DB_PASSWORD"]
+    db_name = st.secrets["DB_NAME"]
     return db_host, db_user, db_password, db_name
-
 
 def get_engine():
     db_host, db_user, db_password, db_name = get_db_config()
@@ -153,7 +475,6 @@ def create_user(name: str, email: str, password: str):
             )
         return get_user_by_email(email)
     except SQLAlchemyError:
-        # We check for duplicates in signup_form, so just fail quietly here.
         return None
 
 
@@ -235,60 +556,7 @@ def inject_css():
 
 
 # =========================================================
-# 4. LLM PROMPT & RETURN
-# =========================================================
-
-def build_termsheet_prompt(inputs: dict) -> str:
-    return f"""
-You are TermSheetGPT.
-
-Company:
-- Name: {inputs['company_name']}
-- Industry: {inputs['industry']}
-- Stage: {inputs['stage']}
-- Country: {inputs['country']}
-- ARR: {inputs['revenue']}
-- Growth: {inputs['growth']}%
-
-Deal:
-- Pre-money: {inputs['pre_money']}
-- Investment: {inputs['investment_amount']}
-- Equity: {inputs['equity_percentage']}%
-- Instrument: {inputs['instrument']}
-- Liquidation: {inputs['liq_multiple']}x {inputs['liq_type']}
-- Anti-dilution: {inputs['anti_dilution']}
-- Board seats: {inputs['board_seats']}
-- Other: {inputs['other_terms']}
-
-Give negotiation guidance in bullet points, grouped as:
-[Valuation], [Anti-Dilution], [Liquidation Preferences], [Other].
-"""
-
-
-def call_termsheet_gpt(prompt: str) -> str:
-    # Placeholder so the app runs without an API key.
-    return """
-[Valuation]
-- Anchor valuation using comparable deals, revenue, and growth.
-- Offer modest movement on price in exchange for better terms (1x non-participating, broad-based weighted average).
-
-[Anti-Dilution]
-- Push for broad-based weighted-average anti-dilution.
-- Avoid full ratchet, which can crush founder ownership in down rounds.
-
-[Liquidation Preferences]
-- Target 1x non-participating as the default.
-- If investors want participation, request a cap at 2–3x and negotiate for participation to fall away at higher exits.
-
-[Other]
-- Maintain at least parity on the board; avoid giving up control too early.
-- Narrow protective provisions to truly major events (M&A, new senior securities, changes to charter).
-- Align information rights with what you can deliver without excessive overhead.
-    """.strip()
-
-
-# =========================================================
-# 5. FINANCE LOGIC & CHARTS
+# 4. FINANCE LOGIC & CHARTS
 # =========================================================
 
 def implied_revenue_multiple(pre: float, rev: float):
@@ -354,14 +622,10 @@ def plot_waterfall(pre, invest, liq_mult, liq_type, equity, currency, exit_v):
 
 
 # =========================================================
-# 6. PDF EXPORT
+# 5. PDF EXPORT
 # =========================================================
 
 def _sanitize_for_pdf(text: str) -> str:
-    """
-    Convert text to a Latin-1–compatible string for fpdf,
-    replacing characters that can't be encoded.
-    """
     if text is None:
         return ""
     try:
@@ -374,7 +638,6 @@ def generate_pdf(summary_text: str, recommendations: str):
     if not FPDF_AVAILABLE:
         return None
 
-    # Sanitize text so fpdf doesn't crash on Unicode
     summary_text = _sanitize_for_pdf(summary_text)
     recommendations = _sanitize_for_pdf(recommendations)
 
@@ -395,14 +658,10 @@ def generate_pdf(summary_text: str, recommendations: str):
     pdf.set_font("Arial", "", 11)
     pdf.multi_cell(0, 6, recommendations)
 
-    # Get PDF buffer from fpdf (different versions return different types)
     data = pdf.output(dest="S")
-
     if isinstance(data, str):
-        # Old-style: returns a latin-1 string
         pdf_bytes = data.encode("latin-1", "replace")
     else:
-        # bytes, bytearray, or similar → force to bytes
         pdf_bytes = bytes(data)
 
     buf = BytesIO(pdf_bytes)
@@ -411,7 +670,7 @@ def generate_pdf(summary_text: str, recommendations: str):
 
 
 # =========================================================
-# 7. AUTH UI (ON MAIN SCREEN)
+# 6. AUTH UI (ON MAIN SCREEN)
 # =========================================================
 
 def signup_form():
@@ -491,7 +750,7 @@ def render_auth_screen():
     )
 
     st.write("")
-    col = st.columns([1, 2, 1])[1]  # center content
+    col = st.columns([1, 2, 1])[1]
     with col:
         mode = st.radio(" ", ["Sign in", "Sign up"], horizontal=True, label_visibility="collapsed")
         if mode == "Sign in":
@@ -501,7 +760,7 @@ def render_auth_screen():
 
 
 # =========================================================
-# 8. MAIN APP
+# 7. MAIN APP
 # =========================================================
 
 def main():
@@ -524,17 +783,13 @@ def main():
     if "remember_me" not in st.session_state:
         st.session_state["remember_me"] = False
 
-    # No sidebar content – keep it clean
-    # Main: auth or app content
     if not st.session_state["user"]:
         render_auth_screen()
         return
 
-    # Logged-in view
     user = st.session_state["user"]
     name = user["name"]
 
-    # Top bar with sign out
     top_col1, top_col2 = st.columns([6, 1])
     with top_col1:
         st.markdown(
@@ -575,7 +830,6 @@ def main():
 
             c1, c2 = st.columns(2)
             with c1:
-                # Revenue in '000, integer only
                 revenue_th = st.number_input(
                     "Annual revenue / ARR ('000)",
                     min_value=0,
@@ -585,7 +839,6 @@ def main():
                     help="Enter revenue in thousands. For example, 500 = 500,000."
                 )
             with c2:
-                # YoY growth with 1 decimal
                 growth = st.number_input(
                     "YoY growth (%)",
                     min_value=-100.0,
@@ -609,7 +862,7 @@ def main():
                 pre_money_th = st.number_input(
                     "Pre-money valuation ('000)",
                     min_value=0,
-                    value=10_000,  # 10,000 * 1,000 = 10M
+                    value=10_000,
                     step=500,
                     format="%d",
                     help="Enter pre-money valuation in thousands. For example, 10,000 = 10,000,000."
@@ -617,7 +870,7 @@ def main():
                 investment_amount_th = st.number_input(
                     "Investment amount ('000)",
                     min_value=0,
-                    value=3_000,  # 3,000 * 1,000 = 3M
+                    value=3_000,
                     step=250,
                     format="%d",
                     help="Enter investment amount in thousands. For example, 3,000 = 3,000,000."
@@ -672,19 +925,17 @@ def main():
             )
 
             st.markdown("---")
-            # Slider in thousands, step = 100 => 100,000
             assumed_exit_th = st.slider(
                 "Assumed exit value for waterfall ('000)",
-                100,          # 100 * 1,000 = 100K
-                300_000,      # 300,000 * 1,000 = 300M
-                50_000,       # default 50M
-                step=100,     # 100 * 1,000 = 100,000
+                100,
+                300_000,
+                50_000,
+                step=100,
                 help="Exit value in thousands. For example, 50,000 = 50,000,000."
             )
 
             submitted = st.form_submit_button("Generate negotiation playbook")
 
-        # Convert '000 units to full numbers
         revenue = revenue_th * 1000.0
         pre_money = pre_money_th * 1000.0
         investment_amount = investment_amount_th * 1000.0
@@ -713,9 +964,9 @@ def main():
 
     if submitted:
         save_deal(st.session_state["user"]["id"], inputs)
-        prompt = build_termsheet_prompt(inputs)
-        with st.spinner("Analyzing your term sheet and building negotiation guidance..."):
-            recs = call_termsheet_gpt(prompt)
+        payload = build_json_payload(name, inputs)
+        with st.spinner("TermSheetGPT is analyzing your deal and building a negotiation plan..."):
+            recs = call_termsheet_gpt_with_json(payload)
         st.session_state["recs"] = recs
         st.session_state["inputs"] = inputs
 
@@ -726,8 +977,8 @@ def main():
             recs = st.session_state["recs"]
             deal = st.session_state["inputs"]
 
-            st.markdown("##### Negotiation Guidance")
-            st.write(recs)
+            st.markdown("##### Negotiation-Focused Analysis (TermSheetGPT)")
+            st.markdown(recs)
 
             st.markdown("##### Valuation Scenarios")
             val_fig = plot_valuation(deal["pre_money"], deal["currency"])
