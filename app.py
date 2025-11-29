@@ -1,6 +1,5 @@
 import streamlit as st
 import plotly.graph_objects as go
-import numpy as np
 from io import BytesIO
 from datetime import datetime
 
@@ -407,7 +406,7 @@ def signup_form():
         user = create_user(name, email, pw)
         if user:
             st.session_state["user"] = user
-            st.success("Account created! You are now signed in.")
+            st.success(f"Welcome, {user['name']}! Your account is created and you are signed in.")
         else:
             st.error("Could not create account. Please try again.")
 
@@ -423,13 +422,13 @@ def signin_form():
         user = get_user_by_email(email)
         if user and verify_password(pw, user["password_hash"]):
             st.session_state["user"] = user
-            st.success("Logged in!")
+            st.success(f"Welcome back, {user['name']}!")
         else:
             st.error("Invalid email or password.")
 
 
 # =========================================================
-# 8. MAIN APP
+# 8. MAIN APP (with better UX & welcome message)
 # =========================================================
 
 def main():
@@ -445,16 +444,20 @@ def main():
     if "user" not in st.session_state:
         st.session_state["user"] = None
 
-    # Sidebar
+    user = st.session_state["user"]
+
+    # --- SIDEBAR ---
     with st.sidebar:
         st.title("TermSheetGPT")
-        if st.session_state["user"]:
-            st.write(f"Signed in as: {st.session_state['user']['name']}")
+
+        if user:
+            st.success(f"Signed in as: {user['name']}")
             if st.button("Sign out"):
                 st.session_state["user"] = None
         else:
-            tab = st.radio("Account", ["Sign in", "Sign up"])
-            if tab == "Sign in":
+            # Only show login / signup when NOT logged in
+            auth_mode = st.radio("Account", ["Sign in", "Sign up"])
+            if auth_mode == "Sign in":
                 signin_form()
             else:
                 signup_form()
@@ -466,23 +469,44 @@ def main():
             unsafe_allow_html=True,
         )
 
+    # --- MAIN CONTENT ---
+
+    # If no user, show a simple hero + ask to use sidebar to log in
     if not st.session_state["user"]:
-        st.info("Please sign in to use the app.")
+        st.markdown(
+            """
+            <div class="ts-card">
+                <div style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em; color:#9ca3af;">
+                    Negotiation Copilot
+                </div>
+                <h1 style="margin-top:0.3rem; margin-bottom:0.2rem;">
+                    TermSheet<span class="ts-accent">GPT</span>
+                </h1>
+                <p class="ts-subtle">
+                    Sign in from the left sidebar to start modeling your term sheet,
+                    understand trade-offs, and generate a negotiation playbook.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.info("Use the sidebar to sign in or create an account.")
         return
 
+    # If user is logged in, show a welcome hero
+    user = st.session_state["user"]
     st.markdown(
-        """
+        f"""
         <div class="ts-card">
             <div style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em; color:#9ca3af;">
-                Negotiation Copilot
+                Welcome
             </div>
             <h1 style="margin-top:0.3rem; margin-bottom:0.2rem;">
-                TermSheet<span class="ts-accent">GPT</span>
+                Welcome, {user['name']}! 👋
             </h1>
             <p class="ts-subtle">
-                Structure your term sheet, understand trade-offs around valuation, anti-dilution,
-                and liquidation preferences, and walk into investor conversations with a clear
-                negotiation playbook.
+                Let's structure your term sheet, analyze valuation, anti-dilution, and liquidation preferences,
+                and turn them into a clear negotiation strategy.
             </p>
         </div>
         """,
@@ -492,6 +516,7 @@ def main():
     st.write("")
     col1, col2 = st.columns([1.1, 1.0])
 
+    # --- LEFT COLUMN: INPUT FORM ---
     with col1:
         with st.form("deal_form"):
             st.subheader("Deal & Company Inputs")
@@ -535,7 +560,13 @@ def main():
             other_terms = st.text_area("Other key terms / concerns", height=80)
 
             st.markdown("---")
-            assumed_exit = st.slider("Assumed exit value for waterfall", 5_000_000, 200_000_000, 50_000_000, step=5_000_000)
+            assumed_exit = st.slider(
+                "Assumed exit value for waterfall",
+                5_000_000,
+                200_000_000,
+                50_000_000,
+                step=5_000_000,
+            )
 
             submitted = st.form_submit_button("Generate negotiation playbook")
 
@@ -567,6 +598,7 @@ def main():
         st.session_state["recs"] = recs
         st.session_state["inputs"] = inputs
 
+    # --- RIGHT COLUMN: OUTPUTS ---
     with col2:
         st.subheader("AI Recommendations & Visuals")
 
