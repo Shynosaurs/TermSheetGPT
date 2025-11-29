@@ -1,5 +1,6 @@
 import streamlit as st
 import plotly.graph_objects as go
+import numpy as np
 from io import BytesIO
 from datetime import datetime
 
@@ -219,6 +220,14 @@ def inject_css():
         }
         .ts-accent { color: #38bdf8; }
         .ts-subtle { color: #9ca3af; font-size: 0.9rem; }
+        .sidebar-welcome {
+            font-size: 0.9rem;
+            color: #e5e7eb;
+        }
+        .sidebar-tagline {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -380,13 +389,13 @@ def generate_pdf(summary_text: str, recommendations: str):
 # =========================================================
 
 def signup_form():
-    st.subheader("Sign up")
+    st.subheader("Create your account")
     with st.form("signup"):
         name = st.text_input("Name")
         email = st.text_input("Email")
         pw = st.text_input("Password", type="password")
         pw2 = st.text_input("Confirm Password", type="password")
-        ok = st.form_submit_button("Create Account")
+        ok = st.form_submit_button("Sign up")
 
     if ok:
         if not name or not email or not pw:
@@ -397,7 +406,6 @@ def signup_form():
             st.error("Passwords do not match.")
             return
 
-        # Check if email already exists
         existing = get_user_by_email(email)
         if existing:
             st.error("An account with this email already exists. Please sign in instead.")
@@ -406,29 +414,29 @@ def signup_form():
         user = create_user(name, email, pw)
         if user:
             st.session_state["user"] = user
-            st.success(f"Welcome, {user['name']}! Your account is created and you are signed in.")
+            st.success("Account created! You are now signed in.")
         else:
             st.error("Could not create account. Please try again.")
 
 
 def signin_form():
-    st.subheader("Sign in")
+    st.subheader("Welcome back")
     with st.form("signin"):
         email = st.text_input("Email")
         pw = st.text_input("Password", type="password")
-        ok = st.form_submit_button("Login")
+        ok = st.form_submit_button("Sign in")
 
     if ok:
         user = get_user_by_email(email)
         if user and verify_password(pw, user["password_hash"]):
             st.session_state["user"] = user
-            st.success(f"Welcome back, {user['name']}!")
+            st.success("You are now signed in.")
         else:
             st.error("Invalid email or password.")
 
 
 # =========================================================
-# 8. MAIN APP (with better UX & welcome message)
+# 8. MAIN APP
 # =========================================================
 
 def main():
@@ -444,69 +452,71 @@ def main():
     if "user" not in st.session_state:
         st.session_state["user"] = None
 
-    user = st.session_state["user"]
-
-    # --- SIDEBAR ---
+    # ----- SIDEBAR -----
     with st.sidebar:
         st.title("TermSheetGPT")
 
+        user = st.session_state["user"]
+
         if user:
-            st.success(f"Signed in as: {user['name']}")
+            # Show compact welcome state after login
+            st.markdown(
+                f"<div class='sidebar-welcome'>Welcome, <b>{user['name']}</b>! 👋</div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "<div class='sidebar-tagline'>You're signed in. Use the main panel to configure your deal.</div>",
+                unsafe_allow_html=True,
+            )
+            st.write("")
             if st.button("Sign out"):
                 st.session_state["user"] = None
+                st.experimental_rerun()
+
+            st.markdown("---")
+            st.caption("Tip: use the ☰ icon at top-left to collapse this sidebar.")
         else:
-            # Only show login / signup when NOT logged in
-            auth_mode = st.radio("Account", ["Sign in", "Sign up"])
-            if auth_mode == "Sign in":
+            # Auth only when logged out
+            mode = st.radio("Account", ["Sign in", "Sign up"], horizontal=True)
+            if mode == "Sign in":
                 signin_form()
             else:
                 signup_form()
 
-        st.markdown("---")
-        st.markdown(
-            "<span class='ts-subtle'>Prototype; do not store sensitive data. "
-            "For production, move DB credentials to secrets.</span>",
-            unsafe_allow_html=True,
-        )
+            st.markdown("---")
+            st.caption("Your credentials are stored securely in the database (demo environment).")
 
-    # --- MAIN CONTENT ---
-
-    # If no user, show a simple hero + ask to use sidebar to log in
+    # ----- MAIN CONTENT -----
     if not st.session_state["user"]:
         st.markdown(
             """
             <div class="ts-card">
-                <div style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em; color:#9ca3af;">
-                    Negotiation Copilot
-                </div>
-                <h1 style="margin-top:0.3rem; margin-bottom:0.2rem;">
-                    TermSheet<span class="ts-accent">GPT</span>
-                </h1>
+                <h1>TermSheet<span class="ts-accent">GPT</span></h1>
                 <p class="ts-subtle">
-                    Sign in from the left sidebar to start modeling your term sheet,
-                    understand trade-offs, and generate a negotiation playbook.
+                    Sign in or create an account in the sidebar to start modeling your round and
+                    get negotiation guidance on valuation, anti-dilution, and liquidation preferences.
                 </p>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        st.info("Use the sidebar to sign in or create an account.")
         return
 
-    # If user is logged in, show a welcome hero
+    # Logged-in view
     user = st.session_state["user"]
+
     st.markdown(
         f"""
         <div class="ts-card">
             <div style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em; color:#9ca3af;">
-                Welcome
+                Negotiation Copilot
             </div>
             <h1 style="margin-top:0.3rem; margin-bottom:0.2rem;">
-                Welcome, {user['name']}! 👋
+                Welcome, {user['name']} — TermSheet<span class="ts-accent">GPT</span>
             </h1>
             <p class="ts-subtle">
-                Let's structure your term sheet, analyze valuation, anti-dilution, and liquidation preferences,
-                and turn them into a clear negotiation strategy.
+                Capture your deal terms on the left, and get AI-powered negotiation insights,
+                valuation scenarios, and liquidation waterfalls on the right.
             </p>
         </div>
         """,
@@ -516,7 +526,6 @@ def main():
     st.write("")
     col1, col2 = st.columns([1.1, 1.0])
 
-    # --- LEFT COLUMN: INPUT FORM ---
     with col1:
         with st.form("deal_form"):
             st.subheader("Deal & Company Inputs")
@@ -529,35 +538,95 @@ def main():
 
             c1, c2 = st.columns(2)
             with c1:
-                revenue = st.number_input("Annual revenue / ARR", min_value=0.0, value=0.0, step=10000.0)
+                revenue = st.number_input(
+                    "Annual revenue / ARR",
+                    min_value=0.0,
+                    value=0.0,
+                    step=10000.0,
+                    help="Approximate current annual recurring revenue or topline."
+                )
             with c2:
-                growth = st.number_input("YoY growth (%)", min_value=-100.0, value=50.0, step=5.0)
+                growth = st.number_input(
+                    "YoY growth (%)",
+                    min_value=-100.0,
+                    value=50.0,
+                    step=5.0,
+                    help="Year-over-year revenue growth."
+                )
 
-            description = st.text_area("Business description", height=80)
+            description = st.text_area(
+                "Business description",
+                height=80,
+                help="Briefly describe your product, target customer, and traction."
+            )
 
             st.markdown("---")
             st.subheader("Term Sheet Terms")
 
             t1, t2 = st.columns(2)
             with t1:
-                pre_money = st.number_input("Pre-money valuation", min_value=0.0, value=10_000_000.0, step=500_000.0)
-                investment_amount = st.number_input("Investment amount", min_value=0.0, value=3_000_000.0, step=250_000.0)
+                pre_money = st.number_input(
+                    "Pre-money valuation",
+                    min_value=0.0,
+                    value=10_000_000.0,
+                    step=500_000.0,
+                    help="Valuation of the company before new money."
+                )
+                investment_amount = st.number_input(
+                    "Investment amount",
+                    min_value=0.0,
+                    value=3_000_000.0,
+                    step=250_000.0,
+                    help="How much capital the investor is putting in."
+                )
             with t2:
-                equity_percentage = st.number_input("Equity % offered", min_value=0.0, max_value=100.0, value=20.0, step=1.0)
-                instrument = st.selectbox("Instrument", ["Preferred Equity", "SAFE", "Convertible Note", "Common Equity"])
+                equity_percentage = st.number_input(
+                    "Equity % offered",
+                    min_value=0.0,
+                    max_value=100.0,
+                    value=20.0,
+                    step=1.0,
+                    help="Percentage of fully diluted equity you are offering."
+                )
+                instrument = st.selectbox(
+                    "Instrument",
+                    ["Preferred Equity", "SAFE", "Convertible Note", "Common Equity"]
+                )
 
             t3, t4 = st.columns(2)
             with t3:
-                liq_multiple = st.number_input("Liquidation pref multiple (x)", min_value=0.5, max_value=3.0, value=1.0, step=0.5)
-                liq_type = st.selectbox("Liquidation pref type", ["Non-participating preferred", "Participating preferred"])
+                liq_multiple = st.number_input(
+                    "Liquidation pref multiple (x)",
+                    min_value=0.5,
+                    max_value=3.0,
+                    value=1.0,
+                    step=0.5,
+                    help="How many times the investor's money comes back before common."
+                )
+                liq_type = st.selectbox(
+                    "Liquidation pref type",
+                    ["Non-participating preferred", "Participating preferred"],
+                    help="Non-participating vs participating preferred."
+                )
             with t4:
                 anti_dilution = st.selectbox(
                     "Anti-dilution protection",
-                    ["None", "Broad-based weighted-average", "Narrow-based weighted-average", "Full ratchet"]
+                    ["None", "Broad-based weighted-average", "Narrow-based weighted-average", "Full ratchet"],
+                    help="How investor price adjusts in a down round."
                 )
-                board_seats = st.number_input("Board seats for investors", min_value=0, value=1, step=1)
+                board_seats = st.number_input(
+                    "Board seats for investors",
+                    min_value=0,
+                    value=1,
+                    step=1,
+                    help="How many formal board seats investors receive."
+                )
 
-            other_terms = st.text_area("Other key terms / concerns", height=80)
+            other_terms = st.text_area(
+                "Other key terms / concerns",
+                height=80,
+                help="Anything else that matters in this negotiation (e.g., pro rata, veto rights, ESOP top-up)."
+            )
 
             st.markdown("---")
             assumed_exit = st.slider(
@@ -566,6 +635,7 @@ def main():
                 200_000_000,
                 50_000_000,
                 step=5_000_000,
+                help="Rough exit value to illustrate how proceeds split between investors and founders."
             )
 
             submitted = st.form_submit_button("Generate negotiation playbook")
@@ -594,11 +664,11 @@ def main():
     if submitted:
         save_deal(st.session_state["user"]["id"], inputs)
         prompt = build_termsheet_prompt(inputs)
-        recs = call_termsheet_gpt(prompt)
+        with st.spinner("Analyzing your term sheet and building negotiation guidance..."):
+            recs = call_termsheet_gpt(prompt)
         st.session_state["recs"] = recs
         st.session_state["inputs"] = inputs
 
-    # --- RIGHT COLUMN: OUTPUTS ---
     with col2:
         st.subheader("AI Recommendations & Visuals")
 
