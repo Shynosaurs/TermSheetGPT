@@ -542,6 +542,92 @@ def inject_css():
             background-color: #020617;
             color: #f9fafb;
         }
+
+        /* Top hero banner */
+        .ts-hero {
+            margin-top: 1rem;
+            padding: 1.8rem 2.2rem;
+            border-radius: 18px;
+            background: radial-gradient(circle at top left, #1d4ed8 0, #020617 45%, #020617 100%);
+            border: 1px solid #1f2937;
+            box-shadow: 0 18px 45px rgba(0,0,0,0.55);
+        }
+        .ts-hero-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        .ts-hero-subtitle {
+            margin-top: 0.4rem;
+            color: #9ca3af;
+            font-size: 0.95rem;
+        }
+
+        .ts-accent { color: #38bdf8; }
+        .ts-subtle { color: #9ca3af; font-size: 0.9rem; }
+
+        /* Auth layout */
+        .auth-wrapper {
+            max-width: 980px;
+            margin: 2.5rem auto 1rem auto;
+        }
+        .auth-card {
+            background: rgba(15, 23, 42, 0.95);
+            border-radius: 18px;
+            padding: 1.75rem 1.8rem;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            box-shadow: 0 20px 55px rgba(0,0,0,0.65);
+        }
+        .auth-left-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+        }
+        .auth-left-kicker {
+            font-size: 0.85rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: #6b7280;
+            margin-bottom: 0.5rem;
+        }
+        .auth-bullets {
+            margin: 0.5rem 0 0 0;
+            padding-left: 1.1rem;
+            color: #d1d5db;
+            font-size: 0.9rem;
+        }
+        .auth-bullets li {
+            margin-bottom: 0.3rem;
+        }
+        .auth-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.2rem 0.7rem;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            font-size: 0.75rem;
+            color: #e5e7eb;
+            margin-top: 0.4rem;
+        }
+        .auth-pill-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: #22c55e;
+        }
+
+        .stTabs [role="tablist"] {
+            gap: 0.5rem;
+        }
+        .stTabs [role="tab"] {
+            padding: 0.25rem 0.9rem;
+            border-radius: 999px;
+            font-size: 0.9rem;
+        }
+
+        /* Logged-in cards */
         .ts-card {
             background-color: #020617;
             border-radius: 18px;
@@ -549,17 +635,7 @@ def inject_css():
             border: 1px solid #1e293b;
             box-shadow: 0 0 30px rgba(0,0,0,0.35);
         }
-        .ts-accent { color: #38bdf8; }
-        .ts-subtle { color: #9ca3af; font-size: 0.9rem; }
-        .auth-card {
-            max-width: 420px;
-            margin: 3rem auto;
-            padding: 2rem;
-            border-radius: 18px;
-            background-color: #020617;
-            border: 1px solid #1f2937;
-            box-shadow: 0 0 30px rgba(0,0,0,0.35);
-        }
+
         .key-moves-card {
             background-color: #0f172a;
             border-radius: 14px;
@@ -691,19 +767,16 @@ def generate_pdf(summary_text: str, recommendations: str):
 # =========================================================
 
 def signup_form():
-    st.markdown("<div class='auth-card'>", unsafe_allow_html=True)
-    st.markdown("### Create your TermSheetGPT account")
-    st.write("Model your rounds and get negotiation guidance tailored to your deal.")
+    st.markdown("#### Create your TermSheetGPT account")
+    st.caption("Save scenarios, compare rounds, and build a repeatable negotiation playbook.")
 
     with st.form("signup"):
         name = st.text_input("Name")
         email = st.text_input("Email")
         pw = st.text_input("Password", type="password")
-        pw2 = st.text_input("Confirm Password", type="password")
+        pw2 = st.text_input("Confirm password", type="password")
         remember = st.checkbox("Keep me signed in on this device")
         ok = st.form_submit_button("Sign up")
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
     if ok:
         if not name or not email or not pw:
@@ -730,17 +803,14 @@ def signup_form():
 
 
 def signin_form():
-    st.markdown("<div class='auth-card'>", unsafe_allow_html=True)
-    st.markdown("### Welcome back to TermSheetGPT")
-    st.write("Sign in to continue refining your deal and negotiation strategy.")
+    st.markdown("#### Welcome back")
+    st.caption("Sign in to continue refining your deal and negotiation strategy.")
 
     with st.form("signin"):
         email = st.text_input("Email")
         pw = st.text_input("Password", type="password")
         remember = st.checkbox("Keep me signed in on this device")
         ok = st.form_submit_button("Sign in")
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
     if ok:
         user = get_user_by_email(email)
