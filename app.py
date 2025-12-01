@@ -540,11 +540,16 @@ def inject_css():
     st.markdown(
         """
         <style>
-        /* Pull the whole app higher and kill default Streamlit padding */
+        /* Kill almost all vertical padding Streamlit adds at the top */
         .block-container {
-            padding-top: 0.3rem !important;
+            padding-top: 0 !important;
             padding-bottom: 1.5rem;
             max-width: 1200px;
+        }
+
+        /* Extra guard: remove padding from the main app view container */
+        [data-testid="stAppViewContainer"] > .main {
+            padding-top: 0 !important;
         }
 
         body {
@@ -576,10 +581,10 @@ def inject_css():
         .ts-accent { color: #38bdf8; }
         .ts-subtle { color: #9ca3af; font-size: 0.9rem; }
 
-        /* Bring auth section right under the navbar */
+        /* Pull the auth section up using a small negative margin */
         .auth-wrapper {
             max-width: 1100px;
-            margin: 0.3rem auto 1.2rem auto;  /* almost no top margin */
+            margin: -0.8rem auto 1.2rem auto;  /* 👈 key change */
         }
 
         .auth-left-kicker {
@@ -663,7 +668,6 @@ def inject_css():
         """,
         unsafe_allow_html=True,
     )
-
 
 # =========================================================
 # 4. FINANCE LOGIC & CHARTS
