@@ -539,9 +539,11 @@ def save_deal(user_id: int, inputs: dict):
 # 3. COOKIE MANAGER (remember-me)
 # =========================================================
 
-@st.cache_resource
 def get_cookie_manager():
-    return stx.CookieManager()
+    """Return a single CookieManager instance, stored in session_state."""
+    if "cookie_manager" not in st.session_state:
+        st.session_state["cookie_manager"] = stx.CookieManager()
+    return st.session_state["cookie_manager"]
 
 
 # =========================================================
