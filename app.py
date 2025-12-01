@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import plotly.graph_objects as go
 from io import BytesIO
 from datetime import datetime
@@ -10,8 +11,7 @@ import secrets  # for secure token generation
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-# cookies
-import extra_streamlit_components as stx
+import extra_streamlit_components as stx  # cookies
 
 # PDF generation
 try:
@@ -33,13 +33,11 @@ def get_openai_client():
     Never hardcode it in the source code.
     """
     api_key = None
-    # 1) Streamlit secrets (Streamlit Cloud)
     try:
         api_key = st.secrets["OPENAI_API_KEY"]
     except Exception:
         pass
 
-    # 2) Local dev fallback via env var
     if not api_key:
         api_key = os.environ.get("OPENAI_API_KEY")
 
@@ -406,7 +404,6 @@ def init_db():
                 """)
             )
         except Exception:
-            # Column probably already exists; ignore
             pass
 
         conn.execute(
@@ -536,18 +533,7 @@ def save_deal(user_id: int, inputs: dict):
 
 
 # =========================================================
-# 3. COOKIE MANAGER (remember-me)
-# =========================================================
-
-def get_cookie_manager():
-    """Return a single CookieManager instance, stored in session_state."""
-    if "cookie_manager" not in st.session_state:
-        st.session_state["cookie_manager"] = stx.CookieManager()
-    return st.session_state["cookie_manager"]
-
-
-# =========================================================
-# 4. STYLE
+# 3. STYLE
 # =========================================================
 
 def inject_css():
@@ -558,8 +544,6 @@ def inject_css():
             background-color: #020617;
             color: #f9fafb;
         }
-
-        /* Top hero banner */
         .ts-hero {
             margin-top: 1rem;
             padding: 1.8rem 2.2rem;
@@ -578,11 +562,8 @@ def inject_css():
             color: #9ca3af;
             font-size: 0.95rem;
         }
-
         .ts-accent { color: #38bdf8; }
         .ts-subtle { color: #9ca3af; font-size: 0.9rem; }
-
-        /* Auth layout */
         .auth-wrapper {
             max-width: 520px;
             margin: 2.5rem auto 1rem auto;
@@ -632,8 +613,6 @@ def inject_css():
             border-radius: 999px;
             background: #22c55e;
         }
-
-        /* Make the form look like a card */
         .stForm {
             background: rgba(15, 23, 42, 0.97);
             border-radius: 18px;
@@ -641,7 +620,6 @@ def inject_css():
             border: 1px solid rgba(148, 163, 184, 0.35);
             box-shadow: 0 20px 55px rgba(0,0,0,0.65);
         }
-
         .stTabs {
             margin-top: 0.8rem;
         }
@@ -653,8 +631,6 @@ def inject_css():
             border-radius: 999px;
             font-size: 0.9rem;
         }
-
-        /* Logged-in cards */
         .ts-card {
             background-color: #020617;
             border-radius: 18px;
@@ -662,7 +638,6 @@ def inject_css():
             border: 1px solid #1e293b;
             box-shadow: 0 0 30px rgba(0,0,0,0.35);
         }
-
         .key-moves-card {
             background-color: #0f172a;
             border-radius: 14px;
@@ -676,7 +651,7 @@ def inject_css():
 
 
 # =========================================================
-# 5. FINANCE LOGIC & CHARTS
+# 4. FINANCE LOGIC & CHARTS
 # =========================================================
 
 def implied_revenue_multiple(pre: float, rev: float):
@@ -796,7 +771,7 @@ def plot_waterfall_scenarios(pre, invest, liq_mult, liq_type, equity, currency, 
 
 
 # =========================================================
-# 6. PDF EXPORT
+# 5. PDF EXPORT
 # =========================================================
 
 def _sanitize_for_pdf(text: str) -> str:
@@ -844,7 +819,7 @@ def generate_pdf(summary_text: str, recommendations: str):
 
 
 # =========================================================
-# 7. AUTH UI (WITH REMEMBER-ME)
+# 6. AUTH UI (WITH REMEMBER-ME)
 # =========================================================
 
 def signin_form(cookie_manager):
@@ -862,11 +837,9 @@ def signin_form(cookie_manager):
             st.session_state["user"] = user
 
             if remember:
-                # generate a random token for this device
                 raw_token = secrets.token_hex(32)
                 token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
 
-                # save hash in DB
                 engine = get_engine()
                 with engine.begin() as conn:
                     conn.execute(
@@ -874,9 +847,13 @@ def signin_form(cookie_manager):
                         {"th": token_hash, "uid": user["id"]},
                     )
 
-                # set cookie with the *raw* token, valid for 30 days
-                cookie_manager.set("tsgpt_remember", raw_token, max_age=60 * 60 * 24 * 30)
+                cookie_manager.set(
+                    "tsgpt_remember",
+                    raw_token,
+                    max_age=60 * 60 * 24 * 30,  # 30 days
+                )
 
+            st.session_state["just_logged_in"] = True
             st.success("You are now signed in.")
             st.rerun()
         else:
@@ -920,8 +897,13 @@ def signup_form(cookie_manager):
                         text("UPDATE users SET remember_token_hash = :th WHERE id = :uid"),
                         {"th": token_hash, "uid": user["id"]},
                     )
-                cookie_manager.set("tsgpt_remember", raw_token, max_age=60 * 60 * 24 * 30)
+                cookie_manager.set(
+                    "tsgpt_remember",
+                    raw_token,
+                    max_age=60 * 60 * 24 * 30,
+                )
 
+            st.session_state["just_logged_in"] = True
             st.success("Account created! You are now signed in.")
             st.rerun()
         else:
@@ -929,7 +911,6 @@ def signup_form(cookie_manager):
 
 
 def render_auth_screen(cookie_manager):
-    # Hero banner
     st.markdown(
         """
         <div class="ts-hero">
@@ -944,7 +925,6 @@ def render_auth_screen(cookie_manager):
         unsafe_allow_html=True,
     )
 
-    # Centered auth content
     st.markdown("<div class='auth-wrapper'>", unsafe_allow_html=True)
     col = st.columns([1, 2, 1])[1]
     with col:
@@ -981,7 +961,7 @@ def render_auth_screen(cookie_manager):
 
 
 # =========================================================
-# 8. OUTPUT PARSING (KEY MOVES)
+# 7. OUTPUT PARSING
 # =========================================================
 
 def extract_top_moves(text: str):
@@ -1004,14 +984,14 @@ def extract_top_moves(text: str):
             if (
                 stripped.lower().startswith("move")
                 or stripped.startswith("-")
-                or stripped[0].isdigit()
+                or stripped[:1].isdigit()
             ):
                 moves.append(stripped)
     return moves[:3]
 
 
 # =========================================================
-# 9. MAIN APP
+# 8. MAIN APP
 # =========================================================
 
 def main():
@@ -1029,15 +1009,18 @@ def main():
         st.error(f"Database connection failed: {e}")
         return
 
-    cookie_manager = get_cookie_manager()
+    # Cookie manager (no caching)
+    cookie_manager = stx.CookieManager()
 
-    # Session init
     if "user" not in st.session_state:
         st.session_state["user"] = None
+    if "just_logged_in" not in st.session_state:
+        st.session_state["just_logged_in"] = False
 
-    # If no user in session, try cookie-based auto-login
+    # Attempt auto-login from cookie if no user yet
     if st.session_state["user"] is None:
-        raw_token = cookie_manager.get("tsgpt_remember")
+        cookies = cookie_manager.get_all() or {}
+        raw_token = cookies.get("tsgpt_remember")
         if raw_token:
             token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
             engine = get_engine()
@@ -1053,9 +1036,17 @@ def main():
                     "email": row[2],
                 }
             else:
-                # invalid token, clear cookie
                 cookie_manager.delete("tsgpt_remember")
 
+    # Scroll to top once after a login/signup
+    if st.session_state.get("just_logged_in"):
+        components.html(
+            "<script>window.parent.scrollTo(0, 0);</script>",
+            height=0,
+        )
+        st.session_state["just_logged_in"] = False
+
+    # If still no user, show auth screen
     if not st.session_state["user"]:
         render_auth_screen(cookie_manager)
         return
@@ -1086,7 +1077,6 @@ def main():
         st.write("")
         st.write("")
         if st.button("Sign out"):
-            # Clear token in DB and cookie
             engine = get_engine()
             with engine.begin() as conn:
                 conn.execute(
@@ -1094,7 +1084,6 @@ def main():
                     {"uid": user["id"]},
                 )
             cookie_manager.delete("tsgpt_remember")
-
             st.session_state["user"] = None
             st.rerun()
 
@@ -1293,7 +1282,6 @@ def main():
 
             submitted = st.form_submit_button("Generate negotiation playbook")
 
-        # Convert '000 units to full numbers
         revenue = revenue_th * 1000.0
         pre_money = pre_money_th * 1000.0
         investment_amount = investment_amount_th * 1000.0
@@ -1333,7 +1321,6 @@ def main():
             "investor_reputation": investor_reputation,
         }
 
-    # Handle submit
     if submitted:
         save_deal(st.session_state["user"]["id"], inputs)
         payload = build_json_payload(name, inputs)
@@ -1350,7 +1337,6 @@ def main():
             recs = st.session_state["recs"]
             deal = st.session_state["inputs"]
 
-            # Key moves card on top
             moves = extract_top_moves(recs)
             if moves:
                 st.markdown(
@@ -1361,11 +1347,9 @@ def main():
                     st.markdown(f"- {m}")
                 st.write("")
 
-            # Full analysis in an expander
             with st.expander("Full TermSheetGPT analysis", expanded=True):
                 st.markdown(recs)
 
-            # Valuation chart
             st.markdown("##### Valuation sensitivity")
             val_fig = plot_valuation(deal["pre_money"], deal["currency"])
             if val_fig:
@@ -1379,7 +1363,6 @@ def main():
             else:
                 st.caption("Enter a positive pre-money valuation to see scenarios.")
 
-            # Ownership / dilution
             st.markdown("##### Ownership / dilution")
             own_fig = plot_ownership(
                 deal["pre_money"],
@@ -1393,7 +1376,6 @@ def main():
                     "(approximate, single-round view)."
                 )
 
-            # Multi-exit waterfall
             st.markdown("##### Liquidation waterfall across exits")
             wf_fig_multi = plot_waterfall_scenarios(
                 deal["pre_money"],
@@ -1412,7 +1394,6 @@ def main():
                     "(simplified single-round structure)."
                 )
 
-            # Export
             st.markdown("##### Export as PDF")
 
             summary_text = f"""
