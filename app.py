@@ -285,10 +285,6 @@ But to secure a better deal.
 
 
 def build_json_payload(user_name: str, inputs: dict) -> dict:
-    """
-    Build the single JSON object TermSheetGPT expects:
-    founder, company, round, traction, proposed_terms, priorities, investor_context.
-    """
     payload = {
         "founder": {
             "name": user_name,
@@ -341,11 +337,7 @@ def build_json_payload(user_name: str, inputs: dict) -> dict:
 
 
 def call_termsheet_gpt_with_json(payload: dict) -> str:
-    """
-    Call OpenAI chat.completions with TermSheetGPT system prompt + JSON payload.
-    """
     client = get_openai_client()
-
     user_content = (
         "Here is the deal context as a JSON object. "
         "Use it to perform the negotiation-focused analysis described in your instructions.\n\n"
@@ -371,9 +363,6 @@ def call_termsheet_gpt_with_json(payload: dict) -> str:
 # =========================================================
 
 def get_db_config():
-    """
-    DB creds live in Streamlit secrets in production.
-    """
     db_host = st.secrets["DB_HOST"]
     db_user = st.secrets["DB_USER"]
     db_password = st.secrets["DB_PASSWORD"]
@@ -440,7 +429,6 @@ def init_db():
 # =========================================================
 
 def hash_password(password: str) -> str:
-    """Simple salted SHA-256 hashing (demo only)."""
     salt = os.urandom(16).hex()
     digest = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
     return f"{salt}${digest}"
@@ -569,36 +557,34 @@ def inject_css():
 
         /* Auth layout */
         .auth-wrapper {
-            max-width: 980px;
+            max-width: 520px;
             margin: 2.5rem auto 1rem auto;
-        }
-        .auth-card {
-            background: rgba(15, 23, 42, 0.95);
-            border-radius: 18px;
-            padding: 1.75rem 1.8rem;
-            border: 1px solid rgba(148, 163, 184, 0.35);
-            box-shadow: 0 20px 55px rgba(0,0,0,0.65);
-        }
-        .auth-left-title {
-            font-size: 1.4rem;
-            font-weight: 600;
-            margin-bottom: 0.4rem;
         }
         .auth-left-kicker {
             font-size: 0.85rem;
             letter-spacing: 0.14em;
             text-transform: uppercase;
             color: #6b7280;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.4rem;
+        }
+        .auth-left-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+        }
+        .auth-subcopy {
+            font-size: 0.9rem;
+            color: #9ca3af;
+            margin-bottom: 0.75rem;
         }
         .auth-bullets {
-            margin: 0.5rem 0 0 0;
-            padding-left: 1.1rem;
+            margin: 0.3rem 0 0.2rem 0;
+            padding-left: 1.3rem;
             color: #d1d5db;
             font-size: 0.9rem;
         }
         .auth-bullets li {
-            margin-bottom: 0.3rem;
+            margin-bottom: 0.25rem;
         }
         .auth-pill {
             display: inline-flex;
@@ -610,7 +596,8 @@ def inject_css():
             border: 1px solid rgba(148, 163, 184, 0.4);
             font-size: 0.75rem;
             color: #e5e7eb;
-            margin-top: 0.4rem;
+            margin-top: 0.6rem;
+            margin-bottom: 0.9rem;
         }
         .auth-pill-dot {
             width: 7px;
@@ -619,6 +606,18 @@ def inject_css():
             background: #22c55e;
         }
 
+        /* Make the form look like a card */
+        .stForm {
+            background: rgba(15, 23, 42, 0.97);
+            border-radius: 18px;
+            padding: 1.6rem 1.7rem !important;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            box-shadow: 0 20px 55px rgba(0,0,0,0.65);
+        }
+
+        .stTabs {
+            margin-top: 0.8rem;
+        }
         .stTabs [role="tablist"] {
             gap: 0.5rem;
         }
@@ -660,9 +659,6 @@ def implied_revenue_multiple(pre: float, rev: float):
 
 
 def plot_valuation(pre: float, currency: str):
-    """
-    Pre-money sensitivity: -20%, Base, +20%.
-    """
     if pre <= 0:
         return None
     fig = go.Figure()
@@ -684,9 +680,6 @@ def plot_valuation(pre: float, currency: str):
 
 
 def waterfall(pre, invest, liq_mult, liq_type, equity, exit_v):
-    """
-    Simple one-round liquidation waterfall for a single exit value.
-    """
     if pre <= 0 or invest <= 0 or liq_mult <= 0 or exit_v <= 0:
         return 0.0, 0.0
 
@@ -709,10 +702,6 @@ def waterfall(pre, invest, liq_mult, liq_type, equity, exit_v):
 
 
 def plot_ownership(pre, invest, equity_pct):
-    """
-    Show post-money ownership split between new investors and existing holders.
-    If equity_pct is 0, infer from invest / (pre + invest).
-    """
     if pre <= 0 or invest <= 0:
         return None
 
@@ -742,16 +731,12 @@ def plot_ownership(pre, invest, equity_pct):
 
 
 def plot_waterfall_scenarios(pre, invest, liq_mult, liq_type, equity, currency, base_exit):
-    """
-    Show investor vs founder proceeds at 3 exit values: 0.5x, 1.0x, 2.0x of base_exit.
-    """
     if base_exit <= 0:
         return None
 
     exits = [0.5 * base_exit, base_exit, 2.0 * base_exit]
-    labels = [f"0.5× ({e:,.0f})", f"1.0× ({base_exit:,.0f})", f"2.0× ({2*base_exit:,.0f})"]
-    inv_vals = []
-    fnd_vals = []
+    labels = [f"0.5× ({exits[0]:,.0f})", f"1.0× ({exits[1]:,.0f})", f"2.0× ({exits[2]:,.0f})"]
+    inv_vals, fnd_vals = [], []
 
     for e in exits:
         inv, fnd = waterfall(pre, invest, liq_mult, liq_type, equity, e)
@@ -767,11 +752,11 @@ def plot_waterfall_scenarios(pre, invest, liq_mult, liq_type, equity, currency, 
         )
     )
     fig.add_trace(
-            go.Bar(
-                x=labels,
-                y=fnd_vals,
-                name="Founders / common",
-            )
+        go.Bar(
+            x=labels,
+            y=fnd_vals,
+            name="Founders / common",
+        )
     )
     fig.update_layout(
         template="plotly_dark",
@@ -836,9 +821,8 @@ def generate_pdf(summary_text: str, recommendations: str):
 # =========================================================
 
 def signin_form():
-    st.markdown("#### Welcome back")
+    st.markdown("##### Sign in")
     st.caption("Sign in to continue refining your deal and negotiation strategy.")
-
     with st.form("signin"):
         email = st.text_input("Email")
         pw = st.text_input("Password", type="password")
@@ -857,9 +841,8 @@ def signin_form():
 
 
 def signup_form():
-    st.markdown("#### Create your TermSheetGPT account")
+    st.markdown("##### Create your TermSheetGPT account")
     st.caption("Save scenarios, compare rounds, and build a repeatable negotiation playbook.")
-
     with st.form("signup"):
         name = st.text_input("Name")
         email = st.text_input("Email")
@@ -872,7 +855,6 @@ def signup_form():
         if not name or not email or not pw:
             st.error("All fields are required.")
             return
-
         if pw != pw2:
             st.error("Passwords do not match.")
             return
@@ -908,19 +890,23 @@ def render_auth_screen():
         unsafe_allow_html=True,
     )
 
+    # Centered auth content
     st.markdown("<div class='auth-wrapper'>", unsafe_allow_html=True)
-    left, right = st.columns([1.15, 0.85])
-
-    with left:
+    col = st.columns([1, 2, 1])[1]
+    with col:
         st.markdown(
             """
             <div>
                 <div class="auth-left-kicker">Founder-first guidance</div>
                 <div class="auth-left-title">Negotiate from a position of strength.</div>
+                <div class="auth-subcopy">
+                    TermSheetGPT turns messy term sheets into a focused negotiation plan
+                    with concrete asks you can use in your next investor call.
+                </div>
                 <ul class="auth-bullets">
                     <li>Spot aggressive liquidation prefs, dilution and control traps in seconds.</li>
                     <li>Compare terms against NVCA, YC SAFE and Techstars-style norms.</li>
-                    <li>Leave each investor call with 2–3 concrete, founder-friendly asks.</li>
+                    <li>Walk away with 2–3 founder-friendly moves to push for.</li>
                 </ul>
                 <div class="auth-pill">
                     <div class="auth-pill-dot"></div>
@@ -931,14 +917,11 @@ def render_auth_screen():
             unsafe_allow_html=True,
         )
 
-    with right:
-        st.markdown("<div class='auth-card'>", unsafe_allow_html=True)
         tabs = st.tabs(["Sign in", "Sign up"])
         with tabs[0]:
             signin_form()
         with tabs[1]:
             signup_form()
-        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -948,38 +931,28 @@ def render_auth_screen():
 # =========================================================
 
 def extract_top_moves(text: str):
-    """
-    Roughly extract 'Your Top 3 Moves' section from TermSheetGPT markdown.
-    Returns a list of strings (moves).
-    """
     if not text:
         return []
-
     lines = text.splitlines()
     moves = []
     in_section = False
-
     for line in lines:
         stripped = line.strip()
-
         if "Your Top 3 Moves" in stripped:
             in_section = True
             continue
-
         if in_section:
             if not stripped:
                 if moves:
                     break
                 else:
                     continue
-
             if (
                 stripped.lower().startswith("move")
                 or stripped.startswith("-")
                 or stripped[0].isdigit()
             ):
                 moves.append(stripped)
-
     return moves[:3]
 
 
