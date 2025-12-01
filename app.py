@@ -540,9 +540,15 @@ def inject_css():
     st.markdown(
         """
         <style>
-        /* Pull the whole app higher */
-        .main .block-container {
-            padding-top: 0.8rem;
+        /* Pull the whole app higher and kill default Streamlit padding */
+        .block-container {
+            padding-top: 0.3rem !important;
+            padding-bottom: 1.5rem;
+            max-width: 1200px;
+        }
+
+        body {
+            margin: 0;
         }
 
         .main {
@@ -570,10 +576,10 @@ def inject_css():
         .ts-accent { color: #38bdf8; }
         .ts-subtle { color: #9ca3af; font-size: 0.9rem; }
 
-        /* Bring the auth wrapper closer to the top */
+        /* Bring auth section right under the navbar */
         .auth-wrapper {
-            max-width: 1000px;
-            margin: 1rem auto 1rem auto;   /* was 2.5rem auto 1rem auto */
+            max-width: 1100px;
+            margin: 0.3rem auto 1.2rem auto;  /* almost no top margin */
         }
 
         .auth-left-kicker {
@@ -621,6 +627,7 @@ def inject_css():
             border-radius: 999px;
             background: #22c55e;
         }
+
         .stForm {
             background: rgba(15, 23, 42, 0.97);
             border-radius: 18px;
@@ -629,7 +636,7 @@ def inject_css():
             box-shadow: 0 20px 55px rgba(0,0,0,0.65);
         }
         .stTabs {
-            margin-top: 0.8rem;
+            margin-top: 0.5rem;
         }
         .stTabs [role="tablist"] {
             gap: 0.5rem;
