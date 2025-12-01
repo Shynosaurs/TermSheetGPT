@@ -955,7 +955,7 @@ def main():
             stage = st.selectbox("Company stage", ["Pre-revenue", "Pre-seed", "Seed", "Series A", "Series B", "Later"])
             round_label = st.text_input("Round label (e.g., Seed, Series A)", value="Series A")
             country = st.text_input("Country/Region", "United States")
-            currency = st.selectbox("Currency", ["USD", "EUR", "GBP", "Other"])
+            currency = st.selectbox("Currency", ["USD", "EUR", "GBP"])
 
             c1a, c1b = st.columns(2)
             with c1a:
@@ -1106,8 +1106,17 @@ def main():
 
             investor_type = st.selectbox(
                 "Lead investor type",
-                ["Not specified", "Top-tier VC", "Emerging VC", "Angel syndicate", "Strategic / Corporate", "Search Fund", "Other"]
+                [
+                    "Not specified",
+                    "Top-tier VC",
+                    "Emerging / new VC",
+                    "Angel / super-angel",
+                    "Strategic / Corporate",
+                    "Family office / fund of funds",
+                    "Other"
+                 ]
             )
+
             leverage = st.selectbox(
                 "Who has more leverage right now?",
                 ["Not specified", "Founder (multiple term sheets)", "Balanced", "Investor (few options)"]
