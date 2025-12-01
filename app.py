@@ -1093,7 +1093,7 @@ def main():
 
             company_name = st.text_input("Company name")
             industry = st.text_input("Industry / vertical")
-            stage = st.selectbox("Company stage", ["Pre-revenue", "Pre-seed", "Seed", "Series A", "Series B", "Later"])
+            stage = st.selectbox("Company stage", ["Pre-seed", "Seed", "Series A", "Series B", "Later"])
             round_label = st.text_input("Round label (e.g., Seed, Series A)", value="Series A")
             country = st.text_input("Country/Region", "United States")
             currency = st.selectbox("Currency", ["USD", "EUR", "GBP"])
