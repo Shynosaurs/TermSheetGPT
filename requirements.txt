@@ -1,7 +1,7 @@
 streamlit
 sqlalchemy
 pymysql
-pandas
+openai
 fpdf2
 plotly
-openai>=1.0.0
+extra-streamlit-components
