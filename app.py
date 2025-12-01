@@ -540,10 +540,16 @@ def inject_css():
     st.markdown(
         """
         <style>
+        /* Pull the whole app higher */
+        .main .block-container {
+            padding-top: 0.8rem;
+        }
+
         .main {
             background-color: #020617;
             color: #f9fafb;
         }
+
         .ts-hero {
             padding: 1.5rem 1.8rem;
             border-radius: 18px;
@@ -563,10 +569,13 @@ def inject_css():
         }
         .ts-accent { color: #38bdf8; }
         .ts-subtle { color: #9ca3af; font-size: 0.9rem; }
+
+        /* Bring the auth wrapper closer to the top */
         .auth-wrapper {
             max-width: 1000px;
-            margin: 2.5rem auto 1rem auto;
+            margin: 1rem auto 1rem auto;   /* was 2.5rem auto 1rem auto */
         }
+
         .auth-left-kicker {
             font-size: 0.85rem;
             letter-spacing: 0.14em;
@@ -647,7 +656,6 @@ def inject_css():
         """,
         unsafe_allow_html=True,
     )
-
 
 # =========================================================
 # 4. FINANCE LOGIC & CHARTS
