@@ -545,15 +545,14 @@ def inject_css():
             color: #f9fafb;
         }
         .ts-hero {
-            margin-top: 1rem;
-            padding: 1.8rem 2.2rem;
+            padding: 1.5rem 1.8rem;
             border-radius: 18px;
-            background: radial-gradient(circle at top left, #1d4ed8 0, #020617 45%, #020617 100%);
+            background: radial-gradient(circle at top left, #1d4ed8 0, #020617 55%, #020617 100%);
             border: 1px solid #1f2937;
             box-shadow: 0 18px 45px rgba(0,0,0,0.55);
         }
         .ts-hero-title {
-            font-size: 2.2rem;
+            font-size: 1.8rem;
             font-weight: 700;
             letter-spacing: 0.02em;
         }
@@ -564,10 +563,9 @@ def inject_css():
         }
         .ts-accent { color: #38bdf8; }
         .ts-subtle { color: #9ca3af; font-size: 0.9rem; }
-
         .auth-wrapper {
-            max-width: 980px;
-            margin: 2.0rem auto 1rem auto;
+            max-width: 1000px;
+            margin: 2.5rem auto 1rem auto;
         }
         .auth-left-kicker {
             font-size: 0.85rem;
@@ -614,7 +612,6 @@ def inject_css():
             border-radius: 999px;
             background: #22c55e;
         }
-
         .stForm {
             background: rgba(15, 23, 42, 0.97);
             border-radius: 18px;
@@ -911,55 +908,54 @@ def signup_form(cookie_manager):
 
 
 def render_auth_screen(cookie_manager):
-    # Hero at top
-    st.markdown(
-        """
-        <div class="ts-hero">
-            <div class="ts-hero-title">
-                TermSheet<span class="ts-accent">GPT</span>
-            </div>
-            <div class="ts-hero-subtitle">
-                AI that helps founders negotiate smarter on valuation, anti-dilution, and liquidation preferences.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # Two-column auth layout: left copy, right sign in/up
+    # Two-column layout: left = auth, right = hero / copy
     st.markdown("<div class='auth-wrapper'>", unsafe_allow_html=True)
-    left_col, right_col = st.columns([1.1, 1.1])
+    left_col, right_col = st.columns([1.1, 1.2])
 
     with left_col:
         st.markdown(
             """
-            <div>
-                <div class="auth-left-kicker">Founder-first guidance</div>
-                <div class="auth-left-title">Negotiate from a position of strength.</div>
-                <div class="auth-subcopy">
+            <div class="auth-left-kicker">Welcome back</div>
+            <div class="auth-left-title">Log in or create your account.</div>
+            <div class="auth-subcopy">
+                Your information stays confidential. We only use it to help you negotiate a better deal.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        tabs = st.tabs(["Sign in", "Sign up"])
+        with tabs[0]:
+            signin_form(cookie_manager)
+        with tabs[1]:
+            signup_form(cookie_manager)
+
+    with right_col:
+        st.markdown(
+            """
+            <div class="ts-hero">
+                <div class="ts-hero-title">
+                    Founder-first guidance
+                </div>
+                <div class="ts-hero-subtitle">
+                    Negotiate from a position of strength.
+                </div>
+                <div style="margin-top:0.9rem; font-size:0.9rem; color:#e5e7eb;">
                     TermSheetGPT turns messy term sheets into a focused negotiation plan
                     with concrete asks you can use in your next investor call.
                 </div>
-                <ul class="auth-bullets">
+                <ul class="auth-bullets" style="margin-top:0.7rem;">
                     <li>Spot aggressive liquidation prefs, dilution and control traps in seconds.</li>
                     <li>Compare terms against NVCA, YC SAFE and Techstars-style norms.</li>
                     <li>Walk away with 2–3 founder-friendly moves to push for.</li>
                 </ul>
                 <div class="auth-pill">
                     <div class="auth-pill-dot"></div>
-                    Built by operators for early-stage founders
+                    Built for early-stage founders raising their next round
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-
-    with right_col:
-        tabs = st.tabs(["Sign in", "Sign up"])
-        with tabs[0]:
-            signin_form(cookie_manager)
-        with tabs[1]:
-            signup_form(cookie_manager)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1040,10 +1036,10 @@ def main():
             else:
                 cookie_manager.delete("tsgpt_remember")
 
-    # If still no user, show auth screen and exit
+    # If still no user, show auth screen
     if not st.session_state["user"]:
         render_auth_screen(cookie_manager)
-        # Force scroll to top anyway (in case browser tries to remember position)
+        # Force scroll top
         components.html("<script>window.scrollTo(0, 0);</script>", height=0)
         return
 
@@ -1422,7 +1418,7 @@ Assumed exit (for visuals): {deal['assumed_exit']:,.0f}
             else:
                 st.caption("Install `fpdf2` to enable PDF export.")
 
-    # 🔝 Always force scroll to top so users see the hero + header
+    # Always force scroll to top at the end of each run
     components.html("<script>window.scrollTo(0, 0);</script>", height=0)
 
 
