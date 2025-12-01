@@ -6,12 +6,12 @@ from datetime import datetime
 import json
 import hashlib
 import os
-import secrets
+import secrets  # for secure token generation
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
-import extra_streamlit_components as stx
+import extra_streamlit_components as stx  # cookies
 
 # PDF generation
 try:
@@ -544,6 +544,24 @@ def inject_css():
             background-color: #020617;
             color: #f9fafb;
         }
+        .ts-hero {
+            margin-top: 1rem;
+            padding: 1.8rem 2.2rem;
+            border-radius: 18px;
+            background: radial-gradient(circle at top left, #1d4ed8 0, #020617 45%, #020617 100%);
+            border: 1px solid #1f2937;
+            box-shadow: 0 18px 45px rgba(0,0,0,0.55);
+        }
+        .ts-hero-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        .ts-hero-subtitle {
+            margin-top: 0.4rem;
+            color: #9ca3af;
+            font-size: 0.95rem;
+        }
         .ts-accent { color: #38bdf8; }
         .ts-subtle { color: #9ca3af; font-size: 0.9rem; }
 
@@ -551,44 +569,26 @@ def inject_css():
             max-width: 980px;
             margin: 2.0rem auto 1rem auto;
         }
-        .app-title {
-            font-size: 2.1rem;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            margin-bottom: 0.2rem;
-        }
-        .app-subtitle {
-            color: #9ca3af;
-            font-size: 0.9rem;
-            margin-bottom: 1.0rem;
-        }
-
-        .auth-left-title {
-            font-size: 1.2rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-
-        .auth-right-kicker {
-            font-size: 0.8rem;
-            letter-spacing: 0.18em;
+        .auth-left-kicker {
+            font-size: 0.85rem;
+            letter-spacing: 0.14em;
             text-transform: uppercase;
             color: #6b7280;
             margin-bottom: 0.4rem;
         }
-        .auth-right-title {
-            font-size: 1.3rem;
+        .auth-left-title {
+            font-size: 1.5rem;
             font-weight: 600;
-            margin-bottom: 0.3rem;
+            margin-bottom: 0.35rem;
         }
         .auth-subcopy {
             font-size: 0.9rem;
             color: #9ca3af;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
         }
         .auth-bullets {
             margin: 0.3rem 0 0.2rem 0;
-            padding-left: 1.2rem;
+            padding-left: 1.3rem;
             color: #d1d5db;
             font-size: 0.9rem;
         }
@@ -606,6 +606,7 @@ def inject_css():
             font-size: 0.75rem;
             color: #e5e7eb;
             margin-top: 0.6rem;
+            margin-bottom: 0.9rem;
         }
         .auth-pill-dot {
             width: 7px;
@@ -617,13 +618,12 @@ def inject_css():
         .stForm {
             background: rgba(15, 23, 42, 0.97);
             border-radius: 18px;
-            padding: 1.5rem 1.6rem !important;
+            padding: 1.6rem 1.7rem !important;
             border: 1px solid rgba(148, 163, 184, 0.35);
             box-shadow: 0 20px 55px rgba(0,0,0,0.65);
         }
-
         .stTabs {
-            margin-top: 0.6rem;
+            margin-top: 0.8rem;
         }
         .stTabs [role="tablist"] {
             gap: 0.5rem;
@@ -633,7 +633,6 @@ def inject_css():
             border-radius: 999px;
             font-size: 0.9rem;
         }
-
         .ts-card {
             background-color: #020617;
             border-radius: 18px;
@@ -641,7 +640,6 @@ def inject_css():
             border: 1px solid #1e293b;
             box-shadow: 0 0 30px rgba(0,0,0,0.35);
         }
-
         .key-moves-card {
             background-color: #0f172a;
             border-radius: 14px;
@@ -913,41 +911,34 @@ def signup_form(cookie_manager):
 
 
 def render_auth_screen(cookie_manager):
-    # Everything above the fold: title + two columns
-    st.markdown("<div class='auth-wrapper'>", unsafe_allow_html=True)
+    # Hero at top
+    st.markdown(
+        """
+        <div class="ts-hero">
+            <div class="ts-hero-title">
+                TermSheet<span class="ts-accent">GPT</span>
+            </div>
+            <div class="ts-hero-subtitle">
+                AI that helps founders negotiate smarter on valuation, anti-dilution, and liquidation preferences.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    left_col, right_col = st.columns([1.05, 1.05])
+    # Two-column auth layout: left copy, right sign in/up
+    st.markdown("<div class='auth-wrapper'>", unsafe_allow_html=True)
+    left_col, right_col = st.columns([1.1, 1.1])
 
     with left_col:
         st.markdown(
             """
             <div>
-                <div class="app-title">
-                    TermSheet<span class="ts-accent">GPT</span>
-                </div>
-                <div class="app-subtitle">
-                    An AI copilot that helps founders negotiate smarter on valuation, dilution, and liquidation preference.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        tabs = st.tabs(["Sign in", "Sign up"])
-        with tabs[0]:
-            signin_form(cookie_manager)
-        with tabs[1]:
-            signup_form(cookie_manager)
-
-    with right_col:
-        st.markdown(
-            """
-            <div>
-                <div class="auth-right-kicker">Founder-first guidance</div>
-                <div class="auth-right-title">Negotiate from a position of strength.</div>
+                <div class="auth-left-kicker">Founder-first guidance</div>
+                <div class="auth-left-title">Negotiate from a position of strength.</div>
                 <div class="auth-subcopy">
-                    TermSheetGPT turns messy term sheets into a focused negotiation plan with concrete asks
-                    you can use in your next investor call.
+                    TermSheetGPT turns messy term sheets into a focused negotiation plan
+                    with concrete asks you can use in your next investor call.
                 </div>
                 <ul class="auth-bullets">
                     <li>Spot aggressive liquidation prefs, dilution and control traps in seconds.</li>
@@ -956,12 +947,19 @@ def render_auth_screen(cookie_manager):
                 </ul>
                 <div class="auth-pill">
                     <div class="auth-pill-dot"></div>
-                    Built for early-stage founders raising on tight timelines
+                    Built by operators for early-stage founders
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
+
+    with right_col:
+        tabs = st.tabs(["Sign in", "Sign up"])
+        with tabs[0]:
+            signin_form(cookie_manager)
+        with tabs[1]:
+            signup_form(cookie_manager)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1013,14 +1011,15 @@ def main():
         init_db()
     except Exception as e:
         st.error(f"Database connection failed: {e}")
-        # still scroll to top script at end
-    # Cookie manager
+        return
+
+    # Cookie manager (no caching)
     cookie_manager = stx.CookieManager()
 
     if "user" not in st.session_state:
         st.session_state["user"] = None
 
-    # Try auto-login from cookie if no user
+    # Attempt auto-login from cookie if no user yet
     if st.session_state["user"] is None:
         cookies = cookie_manager.get_all() or {}
         raw_token = cookies.get("tsgpt_remember")
@@ -1041,363 +1040,359 @@ def main():
             else:
                 cookie_manager.delete("tsgpt_remember")
 
-    user = st.session_state["user"]
-
-    if not user:
-        # Not logged in: show auth screen left, guidance right
+    # If still no user, show auth screen and exit
+    if not st.session_state["user"]:
         render_auth_screen(cookie_manager)
+        # Force scroll to top anyway (in case browser tries to remember position)
+        components.html("<script>window.scrollTo(0, 0);</script>", height=0)
+        return
 
-    else:
-        name = user["name"]
+    user = st.session_state["user"]
+    name = user["name"]
 
-        # Header with signout
-        top_col1, top_col2 = st.columns([6, 1])
-        with top_col1:
-            st.markdown(
-                f"""
-                <div class="ts-card">
-                    <div style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em; color:#9ca3af;">
-                        Negotiation Copilot
-                    </div>
-                    <h1 style="margin-top:0.3rem; margin-bottom:0.2rem;">
-                        TermSheet<span class="ts-accent">GPT</span>
-                    </h1>
-                    <p class="ts-subtle">
-                        {name}, let's map out your round and give you a clear, data-backed plan for your next investor conversation.
-                    </p>
+    # Header with signout
+    top_col1, top_col2 = st.columns([6, 1])
+    with top_col1:
+        st.markdown(
+            f"""
+            <div class="ts-card">
+                <div style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em; color:#9ca3af;">
+                    Negotiation Copilot
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with top_col2:
-            st.write("")
-            st.write("")
-            if st.button("Sign out"):
-                engine = get_engine()
-                with engine.begin() as conn:
-                    conn.execute(
-                        text("UPDATE users SET remember_token_hash = NULL WHERE id = :uid"),
-                        {"uid": user["id"]},
-                    )
-                cookie_manager.delete("tsgpt_remember")
-                st.session_state["user"] = None
-                st.rerun()
-
+                <h1 style="margin-top:0.3rem; margin-bottom:0.2rem;">
+                    TermSheet<span class="ts-accent">GPT</span>
+                </h1>
+                <p class="ts-subtle">
+                    {name}, let's map out your round and give you a clear, data-backed plan for your next investor conversation.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with top_col2:
         st.write("")
-        col1, col2 = st.columns([1.15, 0.85])
+        st.write("")
+        if st.button("Sign out"):
+            engine = get_engine()
+            with engine.begin() as conn:
+                conn.execute(
+                    text("UPDATE users SET remember_token_hash = NULL WHERE id = :uid"),
+                    {"uid": user["id"]},
+                )
+            cookie_manager.delete("tsgpt_remember")
+            st.session_state["user"] = None
+            st.rerun()
 
-        # -------------------- LEFT: INPUTS --------------------
-        with col1:
-            with st.form("deal_form"):
-                st.subheader("Company & Round Basics")
+    st.write("")
+    col1, col2 = st.columns([1.15, 0.85])
 
-                company_name = st.text_input("Company name")
-                industry = st.text_input("Industry / vertical")
-                stage = st.selectbox("Company stage", ["Pre-revenue", "Pre-seed", "Seed", "Series A", "Series B", "Later"])
-                round_label = st.text_input("Round label (e.g., Seed, Series A)", value="Series A")
-                country = st.text_input("Country/Region", "United States")
-                currency = st.selectbox("Currency", ["USD", "EUR", "GBP"])
+    # -------------------- LEFT: INPUTS --------------------
+    with col1:
+        with st.form("deal_form"):
+            st.subheader("Company & Round Basics")
 
-                c1a, c1b = st.columns(2)
-                with c1a:
-                    revenue_th = st.number_input(
-                        "Annual revenue / ARR ('000)",
-                        min_value=0,
-                        value=0,
-                        step=10,
-                        format="%d",
-                        help="Enter revenue in thousands. Example: 500 = 500,000."
-                    )
-                with c1b:
-                    growth = st.number_input(
-                        "YoY growth (%)",
-                        min_value=-100.0,
-                        value=50.0,
-                        step=0.1,
-                        format="%.1f",
-                        help="Year-over-year revenue growth."
-                    )
+            company_name = st.text_input("Company name")
+            industry = st.text_input("Industry / vertical")
+            stage = st.selectbox("Company stage", ["Pre-revenue", "Pre-seed", "Seed", "Series A", "Series B", "Later"])
+            round_label = st.text_input("Round label (e.g., Seed, Series A)", value="Series A")
+            country = st.text_input("Country/Region", "United States")
+            currency = st.selectbox("Currency", ["USD", "EUR", "GBP"])
 
-                description = st.text_area(
-                    "Business description",
-                    height=80,
-                    help="Briefly describe your product, target customer, and traction."
+            c1a, c1b = st.columns(2)
+            with c1a:
+                revenue_th = st.number_input(
+                    "Annual revenue / ARR ('000)",
+                    min_value=0,
+                    value=0,
+                    step=10,
+                    format="%d",
+                    help="Enter revenue in thousands. Example: 500 = 500,000."
+                )
+            with c1b:
+                growth = st.number_input(
+                    "YoY growth (%)",
+                    min_value=-100.0,
+                    value=50.0,
+                    step=0.1,
+                    format="%.1f",
+                    help="Year-over-year revenue growth."
                 )
 
-                st.markdown("---")
-                st.subheader("Economics & Security")
+            description = st.text_area(
+                "Business description",
+                height=80,
+                help="Briefly describe your product, target customer, and traction."
+            )
 
-                t1, t2 = st.columns(2)
-                with t1:
-                    pre_money_th = st.number_input(
-                        "Pre-money valuation ('000)",
-                        min_value=0,
-                        value=10_000,
-                        step=500,
-                        format="%d",
-                        help="Pre-money valuation in thousands. Example: 10,000 = 10,000,000."
-                    )
-                    investment_amount_th = st.number_input(
-                        "Investment amount ('000)",
-                        min_value=0,
-                        value=3_000,
-                        step=250,
-                        format="%d",
-                        help="Investment amount in thousands. Example: 3,000 = 3,000,000."
-                    )
-                with t2:
-                    equity_percentage = st.number_input(
-                        "Equity % offered",
-                        min_value=0.0,
-                        max_value=100.0,
-                        value=20.0,
-                        step=1.0,
-                        help="Percentage of fully diluted equity you are offering."
-                    )
-                    instrument = st.selectbox(
-                        "Instrument",
-                        ["Preferred Equity", "SAFE", "Convertible Note", "Common Equity"]
-                    )
+            st.markdown("---")
+            st.subheader("Economics & Security")
 
-                st.markdown("---")
-                st.subheader("Key Investor Terms")
-
-                t3, t4 = st.columns(2)
-                with t3:
-                    liq_multiple = st.number_input(
-                        "Liquidation preference multiple (x)",
-                        min_value=0.5,
-                        max_value=3.0,
-                        value=1.0,
-                        step=0.5,
-                        help="How many times the investor's money returns before common."
-                    )
-                    liq_type = st.selectbox(
-                        "Liquidation preference type",
-                        ["Non-participating preferred", "Participating preferred"],
-                        help="Non-participating vs participating preferred."
-                    )
-                with t4:
-                    anti_dilution = st.selectbox(
-                        "Anti-dilution protection",
-                        ["None", "Broad-based weighted-average", "Narrow-based weighted-average", "Full ratchet"],
-                        help="How investor price adjusts in a down round."
-                    )
-                    board_seats = st.number_input(
-                        "Board seats for investors",
-                        min_value=0,
-                        value=1,
-                        step=1,
-                        help="Formal board seats granted to investors."
-                    )
-
-                board_terms_text = st.text_area(
-                    "Board & control terms (optional)",
-                    height=60,
-                    help="Paste any relevant board composition / voting / control language (optional)."
+            t1, t2 = st.columns(2)
+            with t1:
+                pre_money_th = st.number_input(
+                    "Pre-money valuation ('000)",
+                    min_value=0,
+                    value=10_000,
+                    step=500,
+                    format="%d",
+                    help="Pre-money valuation in thousands. Example: 10,000 = 10,000,000."
                 )
-
-                veto_terms_text = st.text_area(
-                    "Veto / protective provisions (optional)",
-                    height=60,
-                    help="Paste key veto rights or protective provisions if you have them."
+                investment_amount_th = st.number_input(
+                    "Investment amount ('000)",
+                    min_value=0,
+                    value=3_000,
+                    step=250,
+                    format="%d",
+                    help="Investment amount in thousands. Example: 3,000 = 3,000,000."
                 )
-
-                safes_notes_details = st.text_area(
-                    "Existing SAFEs / notes (optional)",
-                    height=60,
-                    help="Describe outstanding SAFEs/convertible notes, caps/discounts, or paste terms."
-                )
-
-                option_pool_post = st.number_input(
-                    "Post-money option pool target (%) (optional)",
+            with t2:
+                equity_percentage = st.number_input(
+                    "Equity % offered",
                     min_value=0.0,
-                    max_value=40.0,
-                    value=10.0,
+                    max_value=100.0,
+                    value=20.0,
                     step=1.0,
-                    help="Rough target for ESOP post-money (if relevant)."
+                    help="Percentage of fully diluted equity you are offering."
+                )
+                instrument = st.selectbox(
+                    "Instrument",
+                    ["Preferred Equity", "SAFE", "Convertible Note", "Common Equity"]
                 )
 
-                other_terms = st.text_area(
-                    "Other key terms / concerns",
-                    height=80,
-                    help="Anything else that matters in this negotiation (pro rata, MFN, information rights, etc.)."
+            st.markdown("---")
+            st.subheader("Key Investor Terms")
+
+            t3, t4 = st.columns(2)
+            with t3:
+                liq_multiple = st.number_input(
+                    "Liquidation preference multiple (x)",
+                    min_value=0.5,
+                    max_value=3.0,
+                    value=1.0,
+                    step=0.5,
+                    help="How many times the investor's money returns before common."
+                )
+                liq_type = st.selectbox(
+                    "Liquidation preference type",
+                    ["Non-participating preferred", "Participating preferred"],
+                    help="Non-participating vs participating preferred."
+                )
+            with t4:
+                anti_dilution = st.selectbox(
+                    "Anti-dilution protection",
+                    ["None", "Broad-based weighted-average", "Narrow-based weighted-average", "Full ratchet"],
+                    help="How investor price adjusts in a down round."
+                )
+                board_seats = st.number_input(
+                    "Board seats for investors",
+                    min_value=0,
+                    value=1,
+                    step=1,
+                    help="Formal board seats granted to investors."
                 )
 
-                st.markdown("---")
-                st.subheader("Founder Priorities")
+            board_terms_text = st.text_area(
+                "Board & control terms (optional)",
+                height=60,
+                help="Paste any relevant board composition / voting / control language (optional)."
+            )
 
-                pcol1, pcol2, pcol3, pcol4 = st.columns(4)
-                with pcol1:
-                    prio_valuation = st.slider("Valuation", 1, 5, 4)
-                with pcol2:
-                    prio_dilution = st.slider("Dilution", 1, 5, 4)
-                with pcol3:
-                    prio_control = st.slider("Control", 1, 5, 5)
-                with pcol4:
-                    prio_speed = st.slider("Speed to close", 1, 5, 3)
+            veto_terms_text = st.text_area(
+                "Veto / protective provisions (optional)",
+                height=60,
+                help="Paste key veto rights or protective provisions if you have them."
+            )
 
-                priority_notes = st.text_area(
-                    "Anything else about your goals for this round? (optional)",
-                    height=60,
+            safes_notes_details = st.text_area(
+                "Existing SAFEs / notes (optional)",
+                height=60,
+                help="Describe outstanding SAFEs/convertible notes, caps/discounts, or paste terms."
+            )
+
+            option_pool_post = st.number_input(
+                "Post-money option pool target (%) (optional)",
+                min_value=0.0,
+                max_value=40.0,
+                value=10.0,
+                step=1.0,
+                help="Rough target for ESOP post-money (if relevant)."
+            )
+
+            other_terms = st.text_area(
+                "Other key terms / concerns",
+                height=80,
+                help="Anything else that matters in this negotiation (pro rata, MFN, information rights, etc.)."
+            )
+
+            st.markdown("---")
+            st.subheader("Founder Priorities")
+
+            pcol1, pcol2, pcol3, pcol4 = st.columns(4)
+            with pcol1:
+                prio_valuation = st.slider("Valuation", 1, 5, 4)
+            with pcol2:
+                prio_dilution = st.slider("Dilution", 1, 5, 4)
+            with pcol3:
+                prio_control = st.slider("Control", 1, 5, 5)
+            with pcol4:
+                prio_speed = st.slider("Speed to close", 1, 5, 3)
+
+            priority_notes = st.text_area(
+                "Anything else about your goals for this round? (optional)",
+                height=60,
+            )
+
+            st.markdown("---")
+            st.subheader("Investor Context")
+
+            investor_type = st.selectbox(
+                "Lead investor type",
+                [
+                    "Not specified",
+                    "Top-tier VC",
+                    "Emerging / new VC",
+                    "Angel / super-angel",
+                    "Strategic / Corporate",
+                    "Family office / fund of funds",
+                    "Other",
+                ]
+            )
+            leverage = st.selectbox(
+                "Who has more leverage right now?",
+                ["Not specified", "Founder (multiple term sheets)", "Balanced", "Investor (few options)"]
+            )
+            investor_reputation = st.selectbox(
+                "Investor reputation",
+                ["Not specified", "Very strong / brand-name", "Good but not top-tier", "Unknown / mixed", "Potentially problematic"]
+            )
+
+            st.markdown("---")
+            assumed_exit_th = st.slider(
+                "Assumed exit value for waterfall ('000)",
+                100,
+                300_000,
+                50_000,
+                step=100,
+                help="Exit value in thousands. Example: 50,000 = 50,000,000."
+            )
+
+            submitted = st.form_submit_button("Generate negotiation playbook")
+
+        revenue = revenue_th * 1000.0
+        pre_money = pre_money_th * 1000.0
+        investment_amount = investment_amount_th * 1000.0
+        assumed_exit = assumed_exit_th * 1000.0
+
+        inputs = {
+            "company_name": company_name,
+            "industry": industry,
+            "stage": stage,
+            "round_label": round_label,
+            "country": country,
+            "currency": currency,
+            "revenue": revenue,
+            "growth": growth,
+            "description": description,
+            "pre_money": pre_money,
+            "investment_amount": investment_amount,
+            "equity_percentage": equity_percentage,
+            "instrument": instrument,
+            "liq_multiple": liq_multiple,
+            "liq_type": liq_type,
+            "anti_dilution": anti_dilution,
+            "board_seats": board_seats,
+            "board_terms_text": board_terms_text,
+            "veto_terms_text": veto_terms_text,
+            "safes_notes_details": safes_notes_details,
+            "option_pool_post": option_pool_post,
+            "other_terms": other_terms,
+            "assumed_exit": assumed_exit,
+            "prio_valuation": prio_valuation,
+            "prio_dilution": prio_dilution,
+            "prio_control": prio_control,
+            "prio_speed": prio_speed,
+            "priority_notes": priority_notes,
+            "investor_type": investor_type,
+            "leverage": leverage,
+            "investor_reputation": investor_reputation,
+        }
+
+    if submitted:
+        save_deal(st.session_state["user"]["id"], inputs)
+        payload = build_json_payload(name, inputs)
+        with st.spinner("TermSheetGPT is analyzing your deal and building a negotiation plan..."):
+            recs = call_termsheet_gpt_with_json(payload)
+        st.session_state["recs"] = recs
+        st.session_state["inputs"] = inputs
+
+    # -------------------- RIGHT: OUTPUT --------------------
+    with col2:
+        st.subheader("AI Recommendations & Visuals")
+
+        if "recs" in st.session_state:
+            recs = st.session_state["recs"]
+            deal = st.session_state["inputs"]
+
+            moves = extract_top_moves(recs)
+            if moves:
+                st.markdown(
+                    "<div class='key-moves-card'><b>Key Negotiation Moves</b></div>",
+                    unsafe_allow_html=True,
                 )
+                for m in moves:
+                    st.markdown(f"- {m}")
+                st.write("")
 
-                st.markdown("---")
-                st.subheader("Investor Context")
+            with st.expander("Full TermSheetGPT analysis", expanded=True):
+                st.markdown(recs)
 
-                investor_type = st.selectbox(
-                    "Lead investor type",
-                    [
-                        "Not specified",
-                        "Top-tier VC",
-                        "Emerging / new VC",
-                        "Angel / super-angel",
-                        "Strategic / Corporate",
-                        "Family office / fund of funds",
-                        "Other",
-                    ]
-                )
-                leverage = st.selectbox(
-                    "Who has more leverage right now?",
-                    ["Not specified", "Founder (multiple term sheets)", "Balanced", "Investor (few options)"]
-                )
-                investor_reputation = st.selectbox(
-                    "Investor reputation",
-                    ["Not specified", "Very strong / brand-name", "Good but not top-tier", "Unknown / mixed", "Potentially problematic"]
-                )
-
-                st.markdown("---")
-                assumed_exit_th = st.slider(
-                    "Assumed exit value for waterfall ('000)",
-                    100,
-                    300_000,
-                    50_000,
-                    step=100,
-                    help="Exit value in thousands. Example: 50,000 = 50,000,000."
-                )
-
-                submitted = st.form_submit_button("Generate negotiation playbook")
-
-            revenue = revenue_th * 1000.0
-            pre_money = pre_money_th * 1000.0
-            investment_amount = investment_amount_th * 1000.0
-            assumed_exit = assumed_exit_th * 1000.0
-
-            inputs = {
-                "company_name": company_name,
-                "industry": industry,
-                "stage": stage,
-                "round_label": round_label,
-                "country": country,
-                "currency": currency,
-                "revenue": revenue,
-                "growth": growth,
-                "description": description,
-                "pre_money": pre_money,
-                "investment_amount": investment_amount,
-                "equity_percentage": equity_percentage,
-                "instrument": instrument,
-                "liq_multiple": liq_multiple,
-                "liq_type": liq_type,
-                "anti_dilution": anti_dilution,
-                "board_seats": board_seats,
-                "board_terms_text": board_terms_text,
-                "veto_terms_text": veto_terms_text,
-                "safes_notes_details": safes_notes_details,
-                "option_pool_post": option_pool_post,
-                "other_terms": other_terms,
-                "assumed_exit": assumed_exit,
-                "prio_valuation": prio_valuation,
-                "prio_dilution": prio_dilution,
-                "prio_control": prio_control,
-                "prio_speed": prio_speed,
-                "priority_notes": priority_notes,
-                "investor_type": investor_type,
-                "leverage": leverage,
-                "investor_reputation": investor_reputation,
-            }
-
-        if user and 'inputs' not in st.session_state:
-            # Just to avoid key errors if someone refreshes mid-run
-            st.session_state['inputs'] = None
-
-        # Handle submit
-        if user and submitted:
-            save_deal(user["id"], inputs)
-            payload = build_json_payload(name, inputs)
-            with st.spinner("TermSheetGPT is analyzing your deal and building a negotiation plan..."):
-                recs = call_termsheet_gpt_with_json(payload)
-            st.session_state["recs"] = recs
-            st.session_state["inputs"] = inputs
-
-        # -------------------- RIGHT: OUTPUT --------------------
-        with col2:
-            st.subheader("AI Recommendations & Visuals")
-
-            if "recs" in st.session_state and st.session_state["recs"]:
-                recs = st.session_state["recs"]
-                deal = st.session_state["inputs"]
-
-                moves = extract_top_moves(recs)
-                if moves:
-                    st.markdown(
-                        "<div class='key-moves-card'><b>Key Negotiation Moves</b></div>",
-                        unsafe_allow_html=True,
-                    )
-                    for m in moves:
-                        st.markdown(f"- {m}")
-                    st.write("")
-
-                with st.expander("Full TermSheetGPT analysis", expanded=True):
-                    st.markdown(recs)
-
-                st.markdown("##### Valuation sensitivity")
-                val_fig = plot_valuation(deal["pre_money"], deal["currency"])
-                if val_fig:
-                    st.plotly_chart(val_fig, use_container_width=True)
-                    mult = implied_revenue_multiple(deal["pre_money"], deal["revenue"])
-                    if mult:
-                        st.caption(
-                            f"Implied pre-money revenue multiple: **{mult:.1f}x** "
-                            f"(pre-money {deal['pre_money']:,.0f} / revenue {deal['revenue']:,.0f})."
-                        )
-                else:
-                    st.caption("Enter a positive pre-money valuation to see scenarios.")
-
-                st.markdown("##### Ownership / dilution")
-                own_fig = plot_ownership(
-                    deal["pre_money"],
-                    deal["investment_amount"],
-                    deal["equity_percentage"],
-                )
-                if own_fig:
-                    st.plotly_chart(own_fig, use_container_width=True)
+            st.markdown("##### Valuation sensitivity")
+            val_fig = plot_valuation(deal["pre_money"], deal["currency"])
+            if val_fig:
+                st.plotly_chart(val_fig, use_container_width=True)
+                mult = implied_revenue_multiple(deal["pre_money"], deal["revenue"])
+                if mult:
                     st.caption(
-                        f"New investors own ~{deal['equity_percentage']:.1f}% of the company post-money "
-                        "(approximate, single-round view)."
+                        f"Implied pre-money revenue multiple: **{mult:.1f}x** "
+                        f"(pre-money {deal['pre_money']:,.0f} / revenue {deal['revenue']:,.0f})."
                     )
+            else:
+                st.caption("Enter a positive pre-money valuation to see scenarios.")
 
-                st.markdown("##### Liquidation waterfall across exits")
-                wf_fig_multi = plot_waterfall_scenarios(
-                    deal["pre_money"],
-                    deal["investment_amount"],
-                    deal["liq_multiple"],
-                    deal["liq_type"],
-                    deal["equity_percentage"],
-                    deal["currency"],
-                    deal["assumed_exit"],
+            st.markdown("##### Ownership / dilution")
+            own_fig = plot_ownership(
+                deal["pre_money"],
+                deal["investment_amount"],
+                deal["equity_percentage"],
+            )
+            if own_fig:
+                st.plotly_chart(own_fig, use_container_width=True)
+                st.caption(
+                    f"New investors own ~{deal['equity_percentage']:.1f}% of the company post-money "
+                    "(approximate, single-round view)."
                 )
-                if wf_fig_multi:
-                    st.plotly_chart(wf_fig_multi, use_container_width=True)
-                    st.caption(
-                        "Stacked bars show how proceeds split between investors and founders/common "
-                        "at downside (0.5×), base (1.0×), and upside (2.0×) exit values "
-                        "(simplified single-round structure)."
-                    )
 
-                st.markdown("##### Export as PDF")
+            st.markdown("##### Liquidation waterfall across exits")
+            wf_fig_multi = plot_waterfall_scenarios(
+                deal["pre_money"],
+                deal["investment_amount"],
+                deal["liq_multiple"],
+                deal["liq_type"],
+                deal["equity_percentage"],
+                deal["currency"],
+                deal["assumed_exit"],
+            )
+            if wf_fig_multi:
+                st.plotly_chart(wf_fig_multi, use_container_width=True)
+                st.caption(
+                    "Stacked bars show how proceeds split between investors and founders/common "
+                    "at downside (0.5×), base (1.0×), and upside (2.0×) exit values "
+                    "(simplified single-round structure)."
+                )
 
-                summary_text = f"""
+            st.markdown("##### Export as PDF")
+
+            summary_text = f"""
 Generated on: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}
 
 Company: {deal['company_name'] or 'N/A'}
@@ -1416,22 +1411,19 @@ Option pool target (post): {deal['option_pool_post']:.1f}%
 Assumed exit (for visuals): {deal['assumed_exit']:,.0f}
 """
 
-                pdf_buf = generate_pdf(summary_text, recs)
-                if pdf_buf:
-                    st.download_button(
-                        "Download PDF",
-                        pdf_buf,
-                        file_name="TermSheetGPT_summary.pdf",
-                        mime="application/pdf",
-                    )
-                else:
-                    st.caption("Install `fpdf2` to enable PDF export.")
+            pdf_buf = generate_pdf(summary_text, recs)
+            if pdf_buf:
+                st.download_button(
+                    "Download PDF",
+                    pdf_buf,
+                    file_name="TermSheetGPT_summary.pdf",
+                    mime="application/pdf",
+                )
+            else:
+                st.caption("Install `fpdf2` to enable PDF export.")
 
-    # Always force scroll to top after each run so users see the top content
-    components.html(
-        "<script>window.scrollTo(0, 0);</script>",
-        height=0,
-    )
+    # 🔝 Always force scroll to top so users see the hero + header
+    components.html("<script>window.scrollTo(0, 0);</script>", height=0)
 
 
 if __name__ == "__main__":
