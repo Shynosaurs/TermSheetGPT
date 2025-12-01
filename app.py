@@ -564,9 +564,10 @@ def inject_css():
         }
         .ts-accent { color: #38bdf8; }
         .ts-subtle { color: #9ca3af; font-size: 0.9rem; }
+
         .auth-wrapper {
-            max-width: 520px;
-            margin: 2.5rem auto 1rem auto;
+            max-width: 980px;
+            margin: 2.0rem auto 1rem auto;
         }
         .auth-left-kicker {
             font-size: 0.85rem;
@@ -613,6 +614,7 @@ def inject_css():
             border-radius: 999px;
             background: #22c55e;
         }
+
         .stForm {
             background: rgba(15, 23, 42, 0.97);
             border-radius: 18px;
@@ -853,7 +855,6 @@ def signin_form(cookie_manager):
                     max_age=60 * 60 * 24 * 30,  # 30 days
                 )
 
-            st.session_state["just_logged_in"] = True
             st.success("You are now signed in.")
             st.rerun()
         else:
@@ -903,7 +904,6 @@ def signup_form(cookie_manager):
                     max_age=60 * 60 * 24 * 30,
                 )
 
-            st.session_state["just_logged_in"] = True
             st.success("Account created! You are now signed in.")
             st.rerun()
         else:
@@ -911,6 +911,7 @@ def signup_form(cookie_manager):
 
 
 def render_auth_screen(cookie_manager):
+    # Hero at top
     st.markdown(
         """
         <div class="ts-hero">
@@ -925,9 +926,11 @@ def render_auth_screen(cookie_manager):
         unsafe_allow_html=True,
     )
 
+    # Two-column auth layout: left copy, right sign in/up
     st.markdown("<div class='auth-wrapper'>", unsafe_allow_html=True)
-    col = st.columns([1, 2, 1])[1]
-    with col:
+    left_col, right_col = st.columns([1.1, 1.1])
+
+    with left_col:
         st.markdown(
             """
             <div>
@@ -951,6 +954,7 @@ def render_auth_screen(cookie_manager):
             unsafe_allow_html=True,
         )
 
+    with right_col:
         tabs = st.tabs(["Sign in", "Sign up"])
         with tabs[0]:
             signin_form(cookie_manager)
@@ -1014,8 +1018,6 @@ def main():
 
     if "user" not in st.session_state:
         st.session_state["user"] = None
-    if "just_logged_in" not in st.session_state:
-        st.session_state["just_logged_in"] = False
 
     # Attempt auto-login from cookie if no user yet
     if st.session_state["user"] is None:
@@ -1038,17 +1040,11 @@ def main():
             else:
                 cookie_manager.delete("tsgpt_remember")
 
-    # Scroll to top once after a login/signup
-    if st.session_state.get("just_logged_in"):
-        components.html(
-            "<script>window.parent.scrollTo(0, 0);</script>",
-            height=0,
-        )
-        st.session_state["just_logged_in"] = False
-
-    # If still no user, show auth screen
+    # If still no user, show auth screen and exit
     if not st.session_state["user"]:
         render_auth_screen(cookie_manager)
+        # Force scroll to top anyway (in case browser tries to remember position)
+        components.html("<script>window.scrollTo(0, 0);</script>", height=0)
         return
 
     user = st.session_state["user"]
@@ -1425,6 +1421,9 @@ Assumed exit (for visuals): {deal['assumed_exit']:,.0f}
                 )
             else:
                 st.caption("Install `fpdf2` to enable PDF export.")
+
+    # 🔝 Always force scroll to top so users see the hero + header
+    components.html("<script>window.scrollTo(0, 0);</script>", height=0)
 
 
 if __name__ == "__main__":
