@@ -283,6 +283,7 @@ Not to explain law.
 But to secure a better deal.
 """.strip()
 
+
 def build_json_payload(user_name: str, inputs: dict) -> dict:
     """
     Build the single JSON object TermSheetGPT expects:
@@ -659,26 +660,33 @@ def implied_revenue_multiple(pre: float, rev: float):
 
 
 def plot_valuation(pre: float, currency: str):
+    """
+    Pre-money sensitivity: -20%, Base, +20%.
+    """
     if pre <= 0:
         return None
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
-            x=["Downside", "Base", "Upside"],
+            x=["-20%", "Base", "+20%"],
             y=[pre * 0.8, pre, pre * 1.2],
-            name="Valuation scenarios",
+            name="Pre-money valuation",
         )
     )
     fig.update_layout(
         template="plotly_dark",
-        title=f"Valuation Scenarios ({currency})",
-        yaxis_title=f"Pre-money valuation ({currency})",
+        title="Pre-money valuation sensitivity",
+        yaxis_title=f"Pre-money ({currency})",
+        yaxis=dict(tickformat=","),
         showlegend=False,
     )
     return fig
 
 
 def waterfall(pre, invest, liq_mult, liq_type, equity, exit_v):
+    """
+    Simple one-round liquidation waterfall for a single exit value.
+    """
     if pre <= 0 or invest <= 0 or liq_mult <= 0 or exit_v <= 0:
         return 0.0, 0.0
 
@@ -700,18 +708,79 @@ def waterfall(pre, invest, liq_mult, liq_type, equity, exit_v):
     return investor_payout, founder_payout
 
 
-def plot_waterfall(pre, invest, liq_mult, liq_type, equity, currency, exit_v):
-    inv, fnd = waterfall(pre, invest, liq_mult, liq_type, equity, exit_v)
+def plot_ownership(pre, invest, equity_pct):
+    """
+    Show post-money ownership split between new investors and existing holders.
+    If equity_pct is 0, infer from invest / (pre + invest).
+    """
+    if pre <= 0 or invest <= 0:
+        return None
+
+    post = pre + invest
+    if equity_pct and equity_pct > 0:
+        new_investor = equity_pct
+    else:
+        new_investor = invest / post * 100.0
+
+    existing = max(100.0 - new_investor, 0.0)
+
+    fig = go.Figure(
+        data=[
+            go.Pie(
+                labels=["New investors", "Existing holders"],
+                values=[new_investor, existing],
+                hole=0.55,
+            )
+        ]
+    )
+    fig.update_layout(
+        template="plotly_dark",
+        title="Post-money ownership split",
+        showlegend=True,
+    )
+    return fig
+
+
+def plot_waterfall_scenarios(pre, invest, liq_mult, liq_type, equity, currency, base_exit):
+    """
+    Show investor vs founder proceeds at 3 exit values: 0.5x, 1.0x, 2.0x of base_exit.
+    """
+    if base_exit <= 0:
+        return None
+
+    exits = [0.5 * base_exit, base_exit, 2.0 * base_exit]
+    labels = [f"0.5× ({e:,.0f})", f"1.0× ({base_exit:,.0f})", f"2.0× ({2*base_exit:,.0f})"]
+    inv_vals = []
+    fnd_vals = []
+
+    for e in exits:
+        inv, fnd = waterfall(pre, invest, liq_mult, liq_type, equity, e)
+        inv_vals.append(inv)
+        fnd_vals.append(fnd)
+
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=["Investors"], y=[inv], name="Investors"))
-    fig.add_trace(go.Bar(x=["Founders"], y=[fnd], name="Founders/Common"))
+    fig.add_trace(
+        go.Bar(
+            x=labels,
+            y=inv_vals,
+            name="Investors",
+        )
+    )
+    fig.add_trace(
+            go.Bar(
+                x=labels,
+                y=fnd_vals,
+                name="Founders / common",
+            )
+    )
     fig.update_layout(
         template="plotly_dark",
         barmode="stack",
-        title=f"Waterfall at {exit_v:,.0f} {currency} exit",
+        title=f"Liquidation waterfall across exit values ({currency})",
         yaxis_title=f"Proceeds ({currency})",
+        yaxis=dict(tickformat=","),
     )
-    return fig, inv, fnd
+    return fig
 
 
 # =========================================================
@@ -763,8 +832,29 @@ def generate_pdf(summary_text: str, recommendations: str):
 
 
 # =========================================================
-# 6. AUTH UI (ON MAIN SCREEN)
+# 6. AUTH UI
 # =========================================================
+
+def signin_form():
+    st.markdown("#### Welcome back")
+    st.caption("Sign in to continue refining your deal and negotiation strategy.")
+
+    with st.form("signin"):
+        email = st.text_input("Email")
+        pw = st.text_input("Password", type="password")
+        remember = st.checkbox("Keep me signed in on this device")
+        ok = st.form_submit_button("Sign in")
+
+    if ok:
+        user = get_user_by_email(email)
+        if user and verify_password(pw, user["password_hash"]):
+            st.session_state["user"] = user
+            st.session_state["remember_me"] = remember
+            st.success("You are now signed in.")
+            st.rerun()
+        else:
+            st.error("Invalid email or password.")
+
 
 def signup_form():
     st.markdown("#### Create your TermSheetGPT account")
@@ -802,48 +892,55 @@ def signup_form():
             st.error("Could not create account. Please try again.")
 
 
-def signin_form():
-    st.markdown("#### Welcome back")
-    st.caption("Sign in to continue refining your deal and negotiation strategy.")
-
-    with st.form("signin"):
-        email = st.text_input("Email")
-        pw = st.text_input("Password", type="password")
-        remember = st.checkbox("Keep me signed in on this device")
-        ok = st.form_submit_button("Sign in")
-
-    if ok:
-        user = get_user_by_email(email)
-        if user and verify_password(pw, user["password_hash"]):
-            st.session_state["user"] = user
-            st.session_state["remember_me"] = remember
-            st.success("You are now signed in.")
-            st.rerun()
-        else:
-            st.error("Invalid email or password.")
-
-
 def render_auth_screen():
+    # Hero banner
     st.markdown(
         """
-        <div class="ts-card" style="margin-top:1.5rem;">
-            <h1>TermSheet<span class="ts-accent">GPT</span></h1>
-            <p class="ts-subtle">
+        <div class="ts-hero">
+            <div class="ts-hero-title">
+                TermSheet<span class="ts-accent">GPT</span>
+            </div>
+            <div class="ts-hero-subtitle">
                 AI that helps founders negotiate smarter on valuation, anti-dilution, and liquidation preferences.
-            </p>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    st.write("")
-    col = st.columns([1, 2, 1])[1]
-    with col:
-        mode = st.radio(" ", ["Sign in", "Sign up"], horizontal=True, label_visibility="collapsed")
-        if mode == "Sign in":
+    st.markdown("<div class='auth-wrapper'>", unsafe_allow_html=True)
+    left, right = st.columns([1.15, 0.85])
+
+    with left:
+        st.markdown(
+            """
+            <div>
+                <div class="auth-left-kicker">Founder-first guidance</div>
+                <div class="auth-left-title">Negotiate from a position of strength.</div>
+                <ul class="auth-bullets">
+                    <li>Spot aggressive liquidation prefs, dilution and control traps in seconds.</li>
+                    <li>Compare terms against NVCA, YC SAFE and Techstars-style norms.</li>
+                    <li>Leave each investor call with 2–3 concrete, founder-friendly asks.</li>
+                </ul>
+                <div class="auth-pill">
+                    <div class="auth-pill-dot"></div>
+                    Built by operators for early-stage founders
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with right:
+        st.markdown("<div class='auth-card'>", unsafe_allow_html=True)
+        tabs = st.tabs(["Sign in", "Sign up"])
+        with tabs[0]:
             signin_form()
-        else:
+        with tabs[1]:
             signup_form()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 # =========================================================
@@ -865,21 +962,22 @@ def extract_top_moves(text: str):
     for line in lines:
         stripped = line.strip()
 
-        # Start of section
         if "Your Top 3 Moves" in stripped:
             in_section = True
             continue
 
         if in_section:
             if not stripped:
-                # stop at first blank after moves
                 if moves:
                     break
                 else:
                     continue
 
-            # Accept lines that look like bullets or "Move 1 - ..." etc.
-            if stripped.lower().startswith("move") or stripped.startswith("-") or stripped[0].isdigit():
+            if (
+                stripped.lower().startswith("move")
+                or stripped.startswith("-")
+                or stripped[0].isdigit()
+            ):
                 moves.append(stripped)
 
     return moves[:3]
@@ -1015,7 +1113,7 @@ def main():
                 )
                 instrument = st.selectbox(
                     "Instrument",
-                    ["Preferred Equity", "SAFE", "Convertible Note", "Common Equity", "Search Fund Equity"]
+                    ["Preferred Equity", "SAFE", "Convertible Note", "Common Equity"]
                 )
 
             st.markdown("---")
@@ -1113,10 +1211,9 @@ def main():
                     "Angel / super-angel",
                     "Strategic / Corporate",
                     "Family office / fund of funds",
-                    "Other"
-                 ]
+                    "Other",
+                ]
             )
-
             leverage = st.selectbox(
                 "Who has more leverage right now?",
                 ["Not specified", "Founder (multiple term sheets)", "Balanced", "Investor (few options)"]
@@ -1203,16 +1300,15 @@ def main():
                     unsafe_allow_html=True,
                 )
                 for m in moves:
-                    # Clean up prefixes like "Move 1 —" if needed
                     st.markdown(f"- {m}")
-
                 st.write("")
 
-            # Full analysis in an expander so it's readable
+            # Full analysis in an expander
             with st.expander("Full TermSheetGPT analysis", expanded=True):
                 st.markdown(recs)
 
-            st.markdown("##### Valuation Scenarios")
+            # Valuation chart
+            st.markdown("##### Valuation sensitivity")
             val_fig = plot_valuation(deal["pre_money"], deal["currency"])
             if val_fig:
                 st.plotly_chart(val_fig, use_container_width=True)
@@ -1225,8 +1321,23 @@ def main():
             else:
                 st.caption("Enter a positive pre-money valuation to see scenarios.")
 
-            st.markdown("##### Liquidation Waterfall")
-            wf_fig, inv_p, fnd_p = plot_waterfall(
+            # Ownership / dilution
+            st.markdown("##### Ownership / dilution")
+            own_fig = plot_ownership(
+                deal["pre_money"],
+                deal["investment_amount"],
+                deal["equity_percentage"],
+            )
+            if own_fig:
+                st.plotly_chart(own_fig, use_container_width=True)
+                st.caption(
+                    f"New investors own ~{deal['equity_percentage']:.1f}% of the company post-money "
+                    "(approximate, single-round view)."
+                )
+
+            # Multi-exit waterfall
+            st.markdown("##### Liquidation waterfall across exits")
+            wf_fig_multi = plot_waterfall_scenarios(
                 deal["pre_money"],
                 deal["investment_amount"],
                 deal["liq_multiple"],
@@ -1235,13 +1346,15 @@ def main():
                 deal["currency"],
                 deal["assumed_exit"],
             )
-            st.plotly_chart(wf_fig, use_container_width=True)
-            st.caption(
-                f"At a {deal['assumed_exit']:,.0f} {deal['currency']} exit: "
-                f"Investors ≈ {inv_p:,.0f}, Founders/Common ≈ {fnd_p:,.0f} "
-                "(simplified one-round structure)."
-            )
+            if wf_fig_multi:
+                st.plotly_chart(wf_fig_multi, use_container_width=True)
+                st.caption(
+                    "Stacked bars show how proceeds split between investors and founders/common "
+                    "at downside (0.5×), base (1.0×), and upside (2.0×) exit values "
+                    "(simplified single-round structure)."
+                )
 
+            # Export
             st.markdown("##### Export as PDF")
 
             summary_text = f"""
