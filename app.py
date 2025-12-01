@@ -5,9 +5,13 @@ from datetime import datetime
 import json
 import hashlib
 import os
+import secrets  # for secure token generation
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
+
+# cookies
+import extra_streamlit_components as stx
 
 # PDF generation
 try:
@@ -393,6 +397,18 @@ def init_db():
                 )
             """)
         )
+        # Add remember_token_hash column if it doesn't exist yet
+        try:
+            conn.execute(
+                text("""
+                    ALTER TABLE users
+                    ADD COLUMN remember_token_hash VARCHAR(255) NULL
+                """)
+            )
+        except Exception:
+            # Column probably already exists; ignore
+            pass
+
         conn.execute(
             text("""
                 CREATE TABLE IF NOT EXISTS deals (
@@ -520,7 +536,16 @@ def save_deal(user_id: int, inputs: dict):
 
 
 # =========================================================
-# 3. STYLE
+# 3. COOKIE MANAGER (remember-me)
+# =========================================================
+
+@st.cache_resource
+def get_cookie_manager():
+    return stx.CookieManager()
+
+
+# =========================================================
+# 4. STYLE
 # =========================================================
 
 def inject_css():
@@ -649,7 +674,7 @@ def inject_css():
 
 
 # =========================================================
-# 4. FINANCE LOGIC & CHARTS
+# 5. FINANCE LOGIC & CHARTS
 # =========================================================
 
 def implied_revenue_multiple(pre: float, rev: float):
@@ -769,7 +794,7 @@ def plot_waterfall_scenarios(pre, invest, liq_mult, liq_type, equity, currency, 
 
 
 # =========================================================
-# 5. PDF EXPORT
+# 6. PDF EXPORT
 # =========================================================
 
 def _sanitize_for_pdf(text: str) -> str:
@@ -817,10 +842,10 @@ def generate_pdf(summary_text: str, recommendations: str):
 
 
 # =========================================================
-# 6. AUTH UI
+# 7. AUTH UI (WITH REMEMBER-ME)
 # =========================================================
 
-def signin_form():
+def signin_form(cookie_manager):
     st.markdown("##### Sign in")
     st.caption("Sign in to continue refining your deal and negotiation strategy.")
     with st.form("signin"):
@@ -833,14 +858,30 @@ def signin_form():
         user = get_user_by_email(email)
         if user and verify_password(pw, user["password_hash"]):
             st.session_state["user"] = user
-            st.session_state["remember_me"] = remember
+
+            if remember:
+                # generate a random token for this device
+                raw_token = secrets.token_hex(32)
+                token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+                # save hash in DB
+                engine = get_engine()
+                with engine.begin() as conn:
+                    conn.execute(
+                        text("UPDATE users SET remember_token_hash = :th WHERE id = :uid"),
+                        {"th": token_hash, "uid": user["id"]},
+                    )
+
+                # set cookie with the *raw* token, valid for 30 days
+                cookie_manager.set("tsgpt_remember", raw_token, max_age=60 * 60 * 24 * 30)
+
             st.success("You are now signed in.")
             st.rerun()
         else:
             st.error("Invalid email or password.")
 
 
-def signup_form():
+def signup_form(cookie_manager):
     st.markdown("##### Create your TermSheetGPT account")
     st.caption("Save scenarios, compare rounds, and build a repeatable negotiation playbook.")
     with st.form("signup"):
@@ -867,14 +908,25 @@ def signup_form():
         user = create_user(name, email, pw)
         if user:
             st.session_state["user"] = user
-            st.session_state["remember_me"] = remember
+
+            if remember:
+                raw_token = secrets.token_hex(32)
+                token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+                engine = get_engine()
+                with engine.begin() as conn:
+                    conn.execute(
+                        text("UPDATE users SET remember_token_hash = :th WHERE id = :uid"),
+                        {"th": token_hash, "uid": user["id"]},
+                    )
+                cookie_manager.set("tsgpt_remember", raw_token, max_age=60 * 60 * 24 * 30)
+
             st.success("Account created! You are now signed in.")
             st.rerun()
         else:
             st.error("Could not create account. Please try again.")
 
 
-def render_auth_screen():
+def render_auth_screen(cookie_manager):
     # Hero banner
     st.markdown(
         """
@@ -919,15 +971,15 @@ def render_auth_screen():
 
         tabs = st.tabs(["Sign in", "Sign up"])
         with tabs[0]:
-            signin_form()
+            signin_form(cookie_manager)
         with tabs[1]:
-            signup_form()
+            signup_form(cookie_manager)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
 
 # =========================================================
-# 7. OUTPUT PARSING (KEY MOVES)
+# 8. OUTPUT PARSING (KEY MOVES)
 # =========================================================
 
 def extract_top_moves(text: str):
@@ -957,7 +1009,7 @@ def extract_top_moves(text: str):
 
 
 # =========================================================
-# 8. MAIN APP
+# 9. MAIN APP
 # =========================================================
 
 def main():
@@ -975,13 +1027,35 @@ def main():
         st.error(f"Database connection failed: {e}")
         return
 
+    cookie_manager = get_cookie_manager()
+
+    # Session init
     if "user" not in st.session_state:
         st.session_state["user"] = None
-    if "remember_me" not in st.session_state:
-        st.session_state["remember_me"] = False
+
+    # If no user in session, try cookie-based auto-login
+    if st.session_state["user"] is None:
+        raw_token = cookie_manager.get("tsgpt_remember")
+        if raw_token:
+            token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+            engine = get_engine()
+            with engine.connect() as conn:
+                row = conn.execute(
+                    text("SELECT id, name, email FROM users WHERE remember_token_hash = :th"),
+                    {"th": token_hash},
+                ).fetchone()
+            if row:
+                st.session_state["user"] = {
+                    "id": row[0],
+                    "name": row[1],
+                    "email": row[2],
+                }
+            else:
+                # invalid token, clear cookie
+                cookie_manager.delete("tsgpt_remember")
 
     if not st.session_state["user"]:
-        render_auth_screen()
+        render_auth_screen(cookie_manager)
         return
 
     user = st.session_state["user"]
@@ -1010,6 +1084,15 @@ def main():
         st.write("")
         st.write("")
         if st.button("Sign out"):
+            # Clear token in DB and cookie
+            engine = get_engine()
+            with engine.begin() as conn:
+                conn.execute(
+                    text("UPDATE users SET remember_token_hash = NULL WHERE id = :uid"),
+                    {"uid": user["id"]},
+                )
+            cookie_manager.delete("tsgpt_remember")
+
             st.session_state["user"] = None
             st.rerun()
 
